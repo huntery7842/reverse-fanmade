@@ -1,0 +1,53 @@
+{
+  "/v1/selector/destination": {
+    "Body": "{\"notificationTransportParameter\":{\"reconnectRetryNum\":5,\"reconnectWaitTime\":5000,\"reconnectCapTime\":30000},\"gameSessionParameter\":{\"sureNotificationTimeout\":{\"defaultTimeout\":60000},\"abandonedTimeout\":120000},\"matchmakingParameter\":{\"sureNotificationTimeout\":{\"defaultTimeout\":60000}},\"authsessionParameter\":{\"gameServiceActivatedAfterOpenTime\":1},\"services\":[{\"name\":\"mtms\",\"endpoint\":\"http://127.0.0.1:5080\",\"apiTimeout\":30000},{\"name\":\"notification\",\"endpoint\":\"ws://127.0.0.1:5080/\",\"apiTimeout\":30000},{\"name\":\"crossapp\",\"endpoint\":\"http://127.0.0.1:5080\",\"apiTimeout\":30000},{\"name\":\"presence\",\"endpoint\":\"http://127.0.0.1:5080\",\"apiTimeout\":30000},{\"name\":\"relationship\",\"endpoint\":\"http://127.0.0.1:5080\",\"apiTimeout\":30000},{\"name\":\"messaging\",\"endpoint\":\"http://127.0.0.1:5080\",\"apiTimeout\":30000},{\"name\":\"lastonemile\",\"endpoint\":\"http://127.0.0.1:5080\",\"apiTimeout\":30000},{\"name\":\"playarea\",\"endpoint\":\"http://127.0.0.1:5080\",\"apiTimeout\":30000},{\"name\":\"matchmaking\",\"endpoint\":\"http://127.0.0.1:5080\",\"apiTimeout\":30000},{\"name\":\"gamesession\",\"endpoint\":\"http://127.0.0.1:5080\",\"apiTimeout\":30000}]}"
+  },
+  "/v1/batch-get/service-id/": {
+    "Body": "{\"matched\":[{\"service\":\"steam\",\"sub\":\"local-player\",\"service_user_id\":\"local-player\"}],\"unmatched\":[]}"
+  },
+  "/v1/batch-get/service-id/reverse/": {
+    "Body": "{\"matched\":[{\"sub\":\"local-player\"}]}"
+  },
+  "/v1/open/": {
+    "Body": "{\"expires_at\":4102444800,\"session_key\":\"local-session-key\"}"
+  },
+  "/v1/verify/": {
+    "Body": "{\"id_token\":{\"sub\":\"local-player\",\"sub_nickname\":\"LocalPlayer\"}}"
+  },
+  "/v1/close/": {
+    "Body": "{}"
+  },
+  "/v1/service_profile/by_sub/": {
+    "Body": "{\"users\":[{\"service\":\"steam\",\"sub\":\"local-player\",\"service_profiles\":[{\"service\":\"steam\",\"service_user_id\":\"local-player\",\"nickname\":\"LocalPlayer\"}]}]}"
+  },
+  "/v1/nickname/by_match/": {
+    "Body": "{\"users\":[{\"service\":\"steam\",\"sub\":\"local-player\",\"nicknames\":[{\"service\":\"steam\",\"nickname\":\"LocalPlayer\"}]}]}"
+  },
+  "/v1/crossapp/apps": {
+    "Body": "{\"apps\":[{\"name\":\"reverse\"}]}"
+  },
+  "/v1/presence/presence/get": {
+    "Body": "{\"presences\":[{\"accountId\":\"local-player\",\"online\":true,\"lastOfflineChangedAt\":0,\"apps\":[{\"app\":\"reverse\",\"platform\":\"steam\",\"service\":\"steam\",\"userId\":\"local-player\",\"gamesessionIds\":[]}]}]}"
+  },
+  "/v1/relationship/1stparty": {
+    "Body": "{\"requestList\":[],\"relations\":[]}"
+  },
+  "/v1/playarea/user": {
+    "Body": "{\"set\":{\"area\":\"RVS-B-WW\",\"region\":\"RVS-B-WW\"},\"auto\":{\"area\":\"RVS-B-WW\",\"region\":\"RVS-B-WW\"},\"areas\":[{\"name\":\"RVS-B-WW\",\"regions\":[{\"name\":\"RVS-B-WW\",\"state\":\"up\",\"latency\":1}]}]}"
+  },
+  "/v1/playarea/user/auto": {
+    "Body": "{\"set\":{\"area\":\"RVS-B-WW\",\"region\":\"RVS-B-WW\"},\"auto\":{\"area\":\"RVS-B-WW\",\"region\":\"RVS-B-WW\"},\"areas\":[{\"name\":\"RVS-B-WW\",\"regions\":[{\"name\":\"RVS-B-WW\",\"state\":\"up\",\"latency\":1}]}]}"
+  },
+  "/v1/playarea/user/set": {
+    "Body": "{\"set\":{\"area\":\"RVS-B-WW\",\"region\":\"RVS-B-WW\"},\"auto\":{\"area\":\"RVS-B-WW\",\"region\":\"RVS-B-WW\"},\"areas\":[{\"name\":\"RVS-B-WW\",\"regions\":[{\"name\":\"RVS-B-WW\",\"state\":\"up\",\"latency\":1}]}]}"
+  },
+  "/v1/presence/gamesession": {
+    "Body": "{\"presences\":[{\"accountId\":\"local-player\",\"online\":true,\"lastOfflineChangedAt\":0,\"apps\":[{\"app\":\"reverse\",\"platform\":\"steam\",\"service\":\"steam\",\"userId\":\"local-player\",\"gamesessionIds\":[]}]}]}"
+  },
+  "/v1/gameSession/invitation": {
+    "Body": "{\"invitations\":[]}"
+  },
+  "/v1/messaging/message": {
+    "Body": "{\"messages\":[]}"
+  }
+}

@@ -1,0 +1,182 @@
+using System.Text;
+
+namespace ReVerse.Capture.Signaling;
+
+
+public sealed class SignalingConversation(SignalingOptions options, SignalingDirectory directory,
+    SignalingSnapshot peer, string connection, Action<string> stage,
+    Action<SignalingPayloadAudit>? observePayload = null)
+{
+    private bool probed;
+    private bool configured;
+    private bool replied19;
+    private bool replied21;
+    private bool registered;
+    private bool reportedUnknown;
+    private bool negativeControlSent;
+
+    public IReadOnlyList<WireContent> Control(WireContent content)
+    {
+        if (negativeControlSent) throw new WireFormatException("Client continued after a deliberately invalid startup reply.");
+        if (content is WireSettings settings)
+        {
+            if (!probed) throw new WireFormatException("Settings before startup probe.");
+            if (settings.Entries.Count != 3 || !settings.Entries.Select(s => s.Key).Order().SequenceEqual(new ulong[] { 0, 1, 2 }))
+                throw new WireFormatException("Unsupported startup settings keys.");
+            configured = true;
+            stage("settings_received");
+
+            return [new WireSettings([new(0, 5000), new(1, 3), new(2, 25)])];
+        }
+        if (content is not WireControl control) return [];
+        switch (control.Type)
+        {
+            case 3:
+                probed = true;
+                stage("probe_received");
+                return [new WireControl(4, [])];
+            case 0x12:
+                if (!configured || !control.Values.SequenceEqual(new ulong[] { 1, 1 }))
+                    throw new WireFormatException("Unsupported startup request 18.");
+                if (!options.ExperimentalReplies) return Unknown();
+                if (options.NegativeControlReply == 19) return NegativeControl(19);
+                replied19 = true;
+                stage("experimental_reply19");
+                return [new WireControl(0x13, [options.Reply19!.Value])];
+            case 0x14:
+                if (!replied19 || !control.Values.SequenceEqual(new ulong[] { 1 }))
+                    throw new WireFormatException("Unsupported startup request 20.");
+                if (!options.ExperimentalReplies) return Unknown();
+                if (options.NegativeControlReply == 21) return NegativeControl(21);
+                replied21 = true;
+                stage("experimental_reply21_and_gate5");
+                return [new WireControl(0x15, [options.Reply21!.Value]), new WireControl(5, [])];
+            default:
+                throw new WireFormatException("Unexpected client startup control.");
+        }
+    }
+
+    private IReadOnlyList<WireContent> NegativeControl(byte type)
+    {
+        negativeControlSent = true;
+        stage($"negative_control_reply{type}_zero");
+
+        return [new WireControl(type, [0])];
+    }
+
+    private IReadOnlyList<WireContent> Unknown()
+    {
+        if (!reportedUnknown) { stage("blocked_unknown_startup_reply_use_explicit_experimental_settings"); reportedUnknown = true; }
+        return [];
+    }
+
+    public void Application(byte family, byte operation, byte qualifier, ReadOnlyMemory<byte> body)
+    {
+        if (negativeControlSent) throw new WireFormatException("Application after a deliberately invalid startup reply.");
+        if (family == 1 && operation == 1 && qualifier == 1)
+        {
+            if (!replied21) throw new WireFormatException("Application registration before startup gates.");
+            var input = new WireReader(body, ushort.MaxValue);
+            var secret = input.ReadBytes16().ToArray();
+            input.RequireEnd();
+            var output = new WireWriter();
+            output.WriteUInt16(0);
+            Text(output, peer.Session);
+            output.WriteUInt16(options.RegistrationFieldBIsPeerNumber ? peer.Number : options.RegistrationFieldB!.Value);
+            output.WriteUInt16(peer.Representative);
+            var reply = new SignalingDelivery(1, 1, 2, output.ToArray());
+            bool accepted;
+            try { accepted = directory.Register(peer.Session, peer.Account, connection, secret, reply); }
+            finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(secret); }
+            if (!accepted) throw new WireFormatException("Application credential rejected.");
+            registered = true;
+            stage("application_registered");
+            if (directory.Activate(peer.Session))
+            {
+                var readiness = new WireWriter();
+                Text(readiness, peer.Session);
+                readiness.WriteByte(1);
+                readiness.WriteUInt16(checked((ushort)peer.Peers.Count));
+                foreach (var entry in peer.Peers)
+                {
+                    Text(readiness, entry.Account);
+                    readiness.WriteUInt16(entry.Number);
+                    readiness.WriteByte(2);
+                }
+                foreach (var entry in peer.Peers)
+                    if (!directory.Queue(peer.Session, entry.Account, new(3, 7, 0x10, readiness.ToArray())))
+                        throw new WireFormatException("Peer readiness delivery unavailable.");
+                stage("all_members_registered_readiness_sent_NOT_gameplay_verified");
+            }
+            return;
+        }
+        if (!registered) throw new WireFormatException("Payload before registration.");
+        if (family == 4 && operation == 1 && qualifier == 0x10)
+        {
+            Forward(body);
+            return;
+        }
+        throw new WireFormatException($"Unsupported application contract {family:x2}/{operation:x2}/{qualifier:x2}.");
+    }
+
+    private void Forward(ReadOnlyMemory<byte> body)
+    {
+        var audit = new SignalingPayloadAudit { BodyBytes = body.Length };
+        try { Forward(body, ref audit); }
+        finally { observePayload?.Invoke(audit); }
+    }
+
+    private void Forward(ReadOnlyMemory<byte> body, ref SignalingPayloadAudit audit)
+    {
+        if (!directory.AllRegistered(peer.Session)) throw new WireFormatException("Peer set is not registered.");
+        var input = new WireReader(body, ushort.MaxValue);
+        var count = input.ReadUInt16();
+        audit = audit with { DestinationCount = count };
+        if (count is 0 || count > peer.Peers.Count) throw new WireFormatException("Invalid destination count.");
+        var destinations = new HashSet<ushort>();
+        for (var i = 0; i < count; i++)
+            if (!destinations.Add(input.ReadUInt16())) throw new WireFormatException("Duplicate destination.");
+        var block = input.ReadBytes16();
+        input.RequireEnd();
+        var envelope = new WireReader(block);
+        var tag = envelope.ReadByte();
+        audit = audit with { Tag = tag };
+        if (tag != 2) throw new WireFormatException("Unsupported forwarded tag.");
+
+        var version = envelope.ReadByte();
+        audit = audit with { Version = version };
+        if (version != 1) throw new WireFormatException("Unsupported forwarded version.");
+        uint senderNonce = envelope.ReadUInt32(), destinationNonce = envelope.ReadUInt32();
+        var primaryLength = envelope.ReadUInt16();
+        audit = audit with { PrimaryLength = primaryLength };
+        var secondaryLength = envelope.ReadUInt16();
+        audit = audit with { SecondaryLength = secondaryLength };
+        var primary = envelope.ReadBytes(primaryLength);
+        if (secondaryLength != 0)
+        {
+            audit = audit with { SecondaryMetadata = envelope.ReadUInt16() };
+            _ = envelope.ReadBytes(secondaryLength);
+        }
+        envelope.RequireEnd();
+        audit = audit with { EnvelopeValid = true };
+        if (options.PeerDiagnostics)
+            audit = audit with { PeerPrimary = PeerPrimaryDiagnostics.Inspect(primary.Span, senderNonce, destinationNonce) };
+        if (senderNonce != peer.Nonce) throw new WireFormatException("Sender nonce does not match the authenticated membership.");
+
+        var targets = destinations.Select(number => peer.Peers.SingleOrDefault(p => p.Number == number)
+            ?? throw new WireFormatException("Destination outside authenticated session.")).ToArray();
+        if (targets.Any(target => target.Account == peer.Account || target.Nonce != destinationNonce))
+            throw new WireFormatException("Destination nonce or route mismatch.");
+        var output = new WireWriter(ushort.MaxValue);
+        Text(output, peer.Session);
+        output.WriteUInt16(peer.Number);
+        output.WriteBytes16(block.Span);
+        foreach (var target in targets)
+            if (!directory.Queue(peer.Session, target.Account, new(4, 1, 0x10, output.ToArray(), 0x42)))
+                throw new WireFormatException("Destination disconnected or its queue is full.");
+        audit = audit with { Outcome = "queued" };
+        stage("peer_payload_forwarded");
+    }
+
+    private static void Text(WireWriter writer, string text) => writer.WriteBytes16(Encoding.ASCII.GetBytes(text));
+}

@@ -1,0 +1,7 @@
+{
+  "/systems/RVS-B-WW/40000/system.json": {
+    "StatusCode": 200,
+    "ContentType": "application/json",
+    "Body": "{\"json_ver\":\"1.0.0\",\"api_timeout\":60000,\"mtm\":\"http://127.0.0.1:5080\",\"mtms\":\"http://127.0.0.1:5080\",\"tmr\":\"http://127.0.0.1:5080\",\"selector\":\"http://127.0.0.1:5080\",\"working_state\":\"alive\"}"
+  }
+}
