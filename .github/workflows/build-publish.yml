@@ -11,10 +11,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: 10.0.x
 
@@ -55,14 +55,14 @@ jobs:
           Compress-Archive -Path artifacts/relay/* -DestinationPath artifacts/ReVerseRelay-win-x64.zip
 
       - name: Upload backend package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: ReVerse-backend-win-x64
           path: artifacts/ReVerse-backend-win-x64.zip
           if-no-files-found: error
 
       - name: Upload relay package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: ReVerseRelay-win-x64
           path: artifacts/ReVerseRelay-win-x64.zip
