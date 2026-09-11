@@ -15,6 +15,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$fieldTestExecutable = Join-Path $PSScriptRoot 'ReVerse.Capture.exe'
+$fieldTestPublished = Test-Path -LiteralPath $fieldTestExecutable -PathType Leaf
 if ($ObserveOnly -and $PSBoundParameters.ContainsKey('NegativeControlReply')) {
     throw 'NegativeControlReply cannot be combined with ObserveOnly.'
 }
@@ -45,7 +47,7 @@ foreach ($fieldTestName in $fieldTestVariables.Keys) {
 }
 Push-Location $PSScriptRoot
 try {
-    if ($Build) {
+    if ($Build -and -not $fieldTestPublished) {
         & dotnet build --configuration $Configuration --disable-build-servers '-p:UseSharedCompilation=false'
         if ($LASTEXITCODE -ne 0) { throw "Backend build failed with code $LASTEXITCODE. Backend was not started." }
     }
@@ -61,7 +63,8 @@ try {
         Write-Warning "NEGATIVE CONTROL: reply $NegativeControlReply will be zero for every new association. Startup must fail; this is not a playability test."
     }
 
-    & dotnet run --no-build --no-launch-profile --configuration $Configuration
+    if ($fieldTestPublished) { & $fieldTestExecutable }
+    else { & dotnet run --no-build --no-launch-profile --configuration $Configuration }
     if ($LASTEXITCODE -ne 0) { throw "Backend exited with code $LASTEXITCODE." }
 }
 finally {

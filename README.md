@@ -17,6 +17,14 @@ Players must obtain their own lawful copy and any required permissions.
 Compatibility is experimental; bugs, incomplete features, and connection issues
 may occur.
 
+## Running the Windows packages
+
+The backend and relay packages include their .NET runtimes; no .NET installation
+is required on the target Windows x64 machine. Extract the entire backend ZIP
+and run `Start-Backend.cmd`, then enter the server address when prompted.
+The packaged launcher starts the bundled executable without building from source.
+The source checkout still requires the .NET SDK.
+
 ## License and ownership
 
 Original project code is provided under the MIT License, without warranty.

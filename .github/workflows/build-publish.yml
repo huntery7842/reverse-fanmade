@@ -43,7 +43,7 @@ jobs:
         run: dotnet run --project signaling-tests/Signaling.Tests.csproj --configuration Release --no-build
 
       - name: Publish backend
-        run: dotnet publish backend/ReVerse.Capture.csproj --configuration Release --runtime win-x64 --self-contained false --output artifacts/backend
+        run: dotnet publish backend/ReVerse.Capture.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/backend
 
       - name: Publish Windows relay
         run: dotnet publish player-relay/Relay.Windows/Relay.Windows.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/relay
