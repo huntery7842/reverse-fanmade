@@ -1,0 +1,69 @@
+name: Build and publish Windows artifacts
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-publish:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build backend
+        run: dotnet build backend/ReVerse.Capture.csproj --configuration Release
+
+      - name: Build backend provider tests
+        run: dotnet build provider-tests/Provider.Tests.csproj --configuration Release
+
+      - name: Build signaling tests
+        run: dotnet build signaling-tests/Signaling.Tests.csproj --configuration Release
+
+      - name: Build DTLS tests
+        run: dotnet build dtls-tests/Dtls.Tests.csproj --configuration Release
+
+      - name: Build relay tests
+        run: dotnet build player-relay/Relay.Tests/Relay.Tests.csproj --configuration Release
+
+      - name: Build Windows relay
+        run: dotnet build player-relay/Relay.Windows/Relay.Windows.csproj --configuration Release
+
+      - name: Run provider tests
+        run: dotnet run --project provider-tests/Provider.Tests.csproj --configuration Release --no-build
+
+      - name: Run signaling tests
+        run: dotnet run --project signaling-tests/Signaling.Tests.csproj --configuration Release --no-build
+
+      - name: Publish backend
+        run: dotnet publish backend/ReVerse.Capture.csproj --configuration Release --runtime win-x64 --self-contained false --output artifacts/backend
+
+      - name: Publish Windows relay
+        run: dotnet publish player-relay/Relay.Windows/Relay.Windows.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/relay
+
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          Compress-Archive -Path artifacts/backend/* -DestinationPath artifacts/ReVerse-backend-win-x64.zip
+          Compress-Archive -Path artifacts/relay/* -DestinationPath artifacts/ReVerseRelay-win-x64.zip
+
+      - name: Upload backend package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReVerse-backend-win-x64
+          path: artifacts/ReVerse-backend-win-x64.zip
+          if-no-files-found: error
+
+      - name: Upload relay package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReVerseRelay-win-x64
+          path: artifacts/ReVerseRelay-win-x64.zip
+          if-no-files-found: error
