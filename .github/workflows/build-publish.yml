@@ -57,13 +57,13 @@ jobs:
       - name: Upload backend package
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: ReVerse-backend-win-x64
           path: artifacts/ReVerse-backend-win-x64.zip
+          archive: false
           if-no-files-found: error
 
       - name: Upload relay package
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: ReVerseRelay-win-x64
           path: artifacts/ReVerseRelay-win-x64.zip
+          archive: false
           if-no-files-found: error
