@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)][string]$PublicHost,
     [ValidateRange(1, 65535)][int]$UdpPort = 5070,
     [ValidateRange(1, 65535)][int]$PublicPort = 5070,
+    [ValidateRange(2, 10)][int]$Players = 2,
     [string]$HttpUrl = 'http://127.0.0.1:6080',
     [switch]$ObserveOnly,
     [switch]$PeerDiagnostics,
@@ -24,7 +25,7 @@ $fieldTestVariables = @{
     Relay__Enabled = 'true'
     Steam__Mode = 'fallback'
     Matchmaking__ExperimentalSessionProtocol = 'true'
-    Matchmaking__Rulesets__match_master = '2'
+    Matchmaking__Rulesets__match_master = [string]$Players
     Matchmaking__IgnorePlayerAttributes = 'true'
     ASPNETCORE_URLS = $HttpUrl
     Signaling__Enabled = 'true'
@@ -54,7 +55,7 @@ try {
     foreach ($fieldTestName in $fieldTestVariables.Keys) {
         [Environment]::SetEnvironmentVariable($fieldTestName, $fieldTestVariables[$fieldTestName], 'Process')
     }
-    Write-Warning "Field-test provider: UDP $PublicHost`:$PublicPort must reach this PC's UDP $UdpPort. HTTP/ngrok is separate. No firewall/router settings are changed."
+    Write-Warning "Field-test provider: UDP $PublicHost`:$PublicPort must reach this PC's UDP $UdpPort. Match size: $Players player(s) for match_master. HTTP/ngrok is separate. No firewall/router settings are changed."
     if (-not $ObserveOnly) {
         Write-Warning "UNVERIFIED reply values: 19=$Reply19, 21=$Reply21, fieldB=$(if ($RegistrationFieldB -lt 0) { 'peer number' } else { $RegistrationFieldB }). These are experimental hypotheses; playable multiplayer is not verified."
     }

@@ -39,6 +39,8 @@ try {
     Assert-Launcher ($launcherObserved.Diagnostics -eq 'false' -and $env:Signaling__PeerDiagnostics -eq 'true') 'Diagnostics inherited or not restored'
     & $launcherPath -PublicHost '127.0.0.1' -PeerDiagnostics -WarningAction SilentlyContinue
     Assert-Launcher ($global:fieldTestLauncherMock.Observed.Diagnostics -eq 'true') 'Diagnostics opt-in lost'
+    & $launcherPath -PublicHost '127.0.0.1' -Players 4 -WarningAction SilentlyContinue
+    Assert-Launcher ($global:fieldTestLauncherMock.Observed.TwoPlayers -eq '4') 'Match size override lost'
     $global:fieldTestLauncherMock.Calls.Clear()
     & $launcherPath -PublicHost '127.0.0.1' -Build -PeerDiagnostics -Configuration Release -WarningAction SilentlyContinue
     Assert-Launcher ($global:fieldTestLauncherMock.Calls.Count -eq 2) 'Build launch did not build then run'
@@ -55,7 +57,7 @@ try {
         & $launcherPath -PublicHost '127.0.0.1' -NegativeControlReply $launcherReply -WarningAction SilentlyContinue
         Assert-Launcher ($global:fieldTestLauncherMock.Observed.Negative -eq [string]$launcherReply) 'Negative-control selection was lost'
     }
-    foreach ($launcherInvalid in @(@{ NegativeControlReply = 20 }, @{ Reply19 = 0 }, @{ Reply21 = 0 }, @{ NegativeControlReply = 19; ObserveOnly = $true })) {
+    foreach ($launcherInvalid in @(@{ NegativeControlReply = 20 }, @{ Reply19 = 0 }, @{ Reply21 = 0 }, @{ Players = 1 }, @{ Players = 11 }, @{ NegativeControlReply = 19; ObserveOnly = $true })) {
         $global:fieldTestLauncherMock.Observed = $null
         $launcherRejected = $false
         try { & $launcherPath -PublicHost '127.0.0.1' @launcherInvalid -WarningAction SilentlyContinue }
