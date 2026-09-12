@@ -4,6 +4,8 @@ This guide is for the player who hosts the community backend. The backend is
 reachable through the host's ZeroTier address; every player runs their own
 local relay and points it at that address.
 
+Download the backend and relay packages from the [ReVerse v0.1.0 release](https://github.com/lannahirave/reverse-fanmade/releases/tag/v0.1.0).
+
 ## 1. Join the ZeroTier network
 
 Install ZeroTier on every computer, join the same network, and authorize every
