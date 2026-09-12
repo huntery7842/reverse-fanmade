@@ -152,6 +152,7 @@ jobs:
           pattern: ReVerse*
           path: release-assets
           merge-multiple: true
+          skip-decompress: true
 
       - name: Create or update release
         shell: bash
