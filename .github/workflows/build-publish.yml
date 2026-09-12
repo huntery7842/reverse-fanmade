@@ -1,4 +1,4 @@
-name: Build and publish Windows artifacts
+name: Build and publish artifacts
 
 on:
   workflow_dispatch:
@@ -33,8 +33,8 @@ jobs:
       - name: Build relay tests
         run: dotnet build player-relay/Relay.Tests/Relay.Tests.csproj --configuration Release
 
-      - name: Build Windows relay
-        run: dotnet build player-relay/Relay.Windows/Relay.Windows.csproj --configuration Release
+      - name: Build desktop relay
+        run: dotnet build player-relay/Relay.Avalonia/Relay.Avalonia.csproj --configuration Release
 
       - name: Run provider tests
         run: dotnet run --project provider-tests/Provider.Tests.csproj --configuration Release --no-build
@@ -46,7 +46,7 @@ jobs:
         run: dotnet publish backend/ReVerse.Capture.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/backend
 
       - name: Publish Windows relay
-        run: dotnet publish player-relay/Relay.Windows/Relay.Windows.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/relay
+        run: dotnet publish player-relay/Relay.Avalonia/Relay.Avalonia.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/relay
 
       - name: Package artifacts
         shell: pwsh
@@ -65,5 +65,32 @@ jobs:
         uses: actions/upload-artifact@v7.0.1
         with:
           path: artifacts/ReVerseRelay-win-x64.zip
+          archive: false
+          if-no-files-found: error
+
+  publish-linux-relay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish Linux relay
+        run: dotnet publish player-relay/Relay.Avalonia/Relay.Avalonia.csproj --configuration Release --runtime linux-x64 --self-contained true --output artifacts/relay
+
+      - name: Package Linux relay
+        run: |
+          chmod +x artifacts/relay/Relay.Avalonia
+          cd artifacts/relay
+          zip -r ../ReVerseRelay-linux-x64.zip .
+
+      - name: Upload Linux relay package
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          path: artifacts/ReVerseRelay-linux-x64.zip
           archive: false
           if-no-files-found: error

@@ -1,0 +1,44 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ReVerse.Relay.Desktop.App"
+             RequestedThemeVariant="Dark">
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window">
+      <Setter Property="Background" Value="#0B1220" />
+      <Setter Property="FontFamily" Value="Inter" />
+    </Style>
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="#F7FAFC" />
+    </Style>
+    <Style Selector="TextBox.form-field">
+      <Setter Property="Height" Value="48" />
+      <Setter Property="Padding" Value="13,9" />
+      <Setter Property="Margin" Value="0,6,0,0" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Background" Value="#17243A" />
+      <Setter Property="Foreground" Value="#F7FAFC" />
+      <Setter Property="BorderBrush" Value="#293750" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontSize" Value="15" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Height" Value="50" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Background" Value="#4FD1C5" />
+      <Setter Property="Foreground" Value="#071016" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Height" Value="44" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Background" Value="#17243A" />
+      <Setter Property="Foreground" Value="#F7FAFC" />
+      <Setter Property="BorderBrush" Value="#293750" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </Application.Styles>
+</Application>
