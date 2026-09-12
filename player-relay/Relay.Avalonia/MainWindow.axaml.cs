@@ -172,6 +172,11 @@ public sealed partial class MainWindow : Window
         UpdateHostCommand();
     }
 
+    private void OnBackendCommandChanged(object? sender, TextChangedEventArgs e)
+    {
+        UpdateStartBackendAvailability();
+    }
+
     private async void OnDetectAddress(object? sender, RoutedEventArgs e)
     {
         await DetectZeroTierAddressAsync();
@@ -241,7 +246,7 @@ public sealed partial class MainWindow : Window
             }
             BackendCommandEntry.Text = ZeroTierHost.BuildCommand(folder, address);
             PlayerBackendUrlText.Text = $"Players use backend address: {ZeroTierHost.BuildBackendUrl(address)}";
-            StartBackendButton.IsEnabled = !backendHost.IsRunning && File.Exists(Path.Combine(folder.Trim('"'), "Start-Backend.cmd"));
+            UpdateStartBackendAvailability();
         }
         catch (Exception ex)
         {
@@ -256,10 +261,10 @@ public sealed partial class MainWindow : Window
         try
         {
             var folder = HostFolderEntry.Text?.Trim() ?? "";
-            var address = ZeroTierAddressEntry.Text?.Trim() ?? "";
+            var command = BackendCommandEntry.Text ?? "";
             settings.BackendFolder = folder;
             settings.Save();
-            backendHost.Start(folder, address);
+            backendHost.Start(folder, command);
             BackendHostStatusText.Text = "Backend running in a separate command window";
             BackendHostStatusText.Foreground = RunningBrush;
         }
@@ -286,7 +291,7 @@ public sealed partial class MainWindow : Window
             BackendHostStatusText.Text = ex.Message;
             BackendHostStatusText.Foreground = ErrorBrush;
         }
-        UpdateHostCommand();
+        UpdateStartBackendAvailability();
     }
 
     private void OnBackendRunningChanged(bool running)
@@ -306,8 +311,16 @@ public sealed partial class MainWindow : Window
         {
             BackendHostStatusText.Text = "Backend stopped";
             BackendHostStatusText.Foreground = StoppedBrush;
-            UpdateHostCommand();
+            UpdateStartBackendAvailability();
         }
+    }
+
+    private void UpdateStartBackendAvailability()
+    {
+        var folder = HostFolderEntry.Text?.Trim().Trim('"') ?? "";
+        StartBackendButton.IsEnabled = !backendHost.IsRunning &&
+                                       !string.IsNullOrWhiteSpace(BackendCommandEntry.Text) &&
+                                       File.Exists(Path.Combine(folder, "Start-Backend.cmd"));
     }
 
     private void StopForShutdown()

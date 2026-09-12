@@ -32,7 +32,7 @@ Check(ZeroTierHost.BuildBackendUrl("10.205.138.26") == "http://10.205.138.26:608
 var folder = Path.Combine(Path.GetTempPath(), "Backend Folder");
 var launcher = Path.Combine(Path.GetFullPath(folder), "Start-Backend.cmd");
 var command = ZeroTierHost.BuildCommand(folder, "10.205.138.26");
-Check(command == $"\"{launcher}\" -PublicHost 10.205.138.26 -HttpUrl http://10.205.138.26:6080", "backend command generated and quoted");
+Check(command == $"\"{launcher}\" -PublicHost 10.205.138.26 -HttpUrl http://10.205.138.26:6080 -Players 2", "backend command generated and quoted");
 
 if (args.Contains("--live", StringComparer.OrdinalIgnoreCase))
     Check(await ZeroTierHost.DetectAddressAsync() is not null, "live ZeroTier address detected through ipconfig");

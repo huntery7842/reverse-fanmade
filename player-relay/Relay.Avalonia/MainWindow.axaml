@@ -78,8 +78,9 @@
 
             <StackPanel Spacing="0">
               <TextBlock Text="COMMAND" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-              <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="74" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" />
+              <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="74" AcceptsReturn="False" TextWrapping="Wrap" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextChanged="OnBackendCommandChanged" />
               <TextBlock x:Name="PlayerBackendUrlText" Margin="2,7,0,0" FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
+              <TextBlock Text="Edit -Players 2 to choose a match size from 2 to 10." Margin="2,4,0,0" FontSize="12" Foreground="#9FB0C8" />
             </StackPanel>
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="8">

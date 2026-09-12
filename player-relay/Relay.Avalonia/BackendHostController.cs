@@ -60,7 +60,7 @@ public static partial class ZeroTierHost
         var folder = Path.GetFullPath(backendFolder.Trim().Trim('"'));
         var launcher = Path.Combine(folder, "Start-Backend.cmd");
         var ip = ValidateAddress(address);
-        return $"\"{launcher}\" -PublicHost {ip} -HttpUrl {BuildBackendUrl(ip)}";
+        return $"\"{launcher}\" -PublicHost {ip} -HttpUrl {BuildBackendUrl(ip)} -Players 2";
     }
 
     public static string BuildBackendUrl(string address) => $"http://{ValidateAddress(address)}:6080";
@@ -102,7 +102,7 @@ internal sealed class BackendHostController : IAsyncDisposable
         }
     }
 
-    public void Start(string backendFolder, string address)
+    public void Start(string backendFolder, string command)
     {
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("Starting the backend from this app is available on Windows only.");
@@ -112,7 +112,9 @@ internal sealed class BackendHostController : IAsyncDisposable
             throw new DirectoryNotFoundException("The selected backend folder does not exist.");
         if (!File.Exists(launcher))
             throw new FileNotFoundException("Start-Backend.cmd was not found in the selected backend folder.", launcher);
-        var command = ZeroTierHost.BuildCommand(folder, address);
+        command = command.Trim();
+        if (command.Length == 0)
+            throw new ArgumentException("Enter a backend command.");
         lock (gate)
         {
             if (process is { HasExited: false })
