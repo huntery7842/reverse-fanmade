@@ -74,7 +74,7 @@ jobs:
           archive: false
           if-no-files-found: error
 
-  publish-linux-relay:
+  publish-linux-artifacts:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -84,6 +84,22 @@ jobs:
         uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: 10.0.x
+
+      - name: Publish Linux backend
+        run: dotnet publish backend/ReVerse.Capture.csproj --configuration Release --runtime linux-x64 --self-contained true --output artifacts/backend
+
+      - name: Package Linux backend
+        run: |
+          chmod +x artifacts/backend/ReVerse.Capture
+          cd artifacts/backend
+          zip -r ../ReVerse-backend-linux-x64.zip .
+
+      - name: Upload Linux backend package
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          path: artifacts/ReVerse-backend-linux-x64.zip
+          archive: false
+          if-no-files-found: error
 
       - name: Publish Linux relay
         run: dotnet publish player-relay/Relay.Avalonia/Relay.Avalonia.csproj --configuration Release --runtime linux-x64 --self-contained true --output artifacts/relay
