@@ -2,6 +2,21 @@ name: Build and publish artifacts
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Git tag to create or update on the Releases page
+        required: true
+        type: string
+      release_name:
+        description: Display name for a new release
+        required: false
+        default: ReVerse packages
+        type: string
+      prerelease:
+        description: Mark a new release as a pre-release
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -63,6 +78,7 @@ jobs:
       - name: Upload backend package
         uses: actions/upload-artifact@v7.0.1
         with:
+          name: ReVerse-backend-win-x64
           path: artifacts/ReVerse-backend-win-x64.zip
           archive: false
           if-no-files-found: error
@@ -70,6 +86,7 @@ jobs:
       - name: Upload relay package
         uses: actions/upload-artifact@v7.0.1
         with:
+          name: ReVerseRelay-win-x64
           path: artifacts/ReVerseRelay-win-x64.zip
           archive: false
           if-no-files-found: error
@@ -97,6 +114,7 @@ jobs:
       - name: Upload Linux backend package
         uses: actions/upload-artifact@v7.0.1
         with:
+          name: ReVerse-backend-linux-x64
           path: artifacts/ReVerse-backend-linux-x64.zip
           archive: false
           if-no-files-found: error
@@ -113,6 +131,55 @@ jobs:
       - name: Upload Linux relay package
         uses: actions/upload-artifact@v7.0.1
         with:
+          name: ReVerseRelay-linux-x64
           path: artifacts/ReVerseRelay-linux-x64.zip
           archive: false
           if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub release
+    needs:
+      - build-test-publish
+      - publish-linux-artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v7.0.1
+        with:
+          pattern: ReVerse*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create or update release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t assets < <(find release-assets -maxdepth 1 -type f -name '*.zip' -print | sort)
+          if [[ "${#assets[@]}" -ne 4 ]]; then
+            echo "Expected four package ZIPs, found ${#assets[@]}." >&2
+            printf '%s\n' "${assets[@]}" >&2
+            exit 1
+          fi
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          else
+            create_args=("$RELEASE_TAG" "${assets[@]}" --title "$RELEASE_NAME" --generate-notes)
+            if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
+              create_args+=(--prerelease)
+            fi
+            gh release create "${create_args[@]}"
+          fi
+
+          echo "Release URL:"
+          gh release view "$RELEASE_TAG" --json url --jq .url
