@@ -147,7 +147,7 @@ jobs:
       contents: write
     steps:
       - name: Download packages
-        uses: actions/download-artifact@v7.0.1
+        uses: actions/download-artifact@v8.0.1
         with:
           pattern: ReVerse*
           path: release-assets
