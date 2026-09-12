@@ -36,6 +36,16 @@ may occur.
 - [Player quick start](QUICKSTART-PLAYER.md)
 - [Complete setup guide](SETUP.md)
 
+## AI-assisted help
+
+[![Ask ChatGPT](https://img.shields.io/badge/Ask%20ChatGPT-10A37F?style=for-the-badge&logo=openai&logoColor=white)](https://chatgpt.com/?q=Help%20me%20set%20up%20or%20troubleshoot%20the%20ReVerse%20Community%20Backend.%20Use%20this%20GitHub%20repository%20as%20context%2C%20especially%20README.md%2C%20SETUP.md%2C%20QUICKSTART-HOST.md%2C%20and%20QUICKSTART-PLAYER.md%3A%20https%3A%2F%2Fgithub.com%2Flannahirave%2Freverse-fanmade)
+[![Ask Claude](https://img.shields.io/badge/Ask%20Claude-D97757?style=for-the-badge&logo=claude&logoColor=white)](https://claude.ai/new?q=Help%20me%20set%20up%20or%20troubleshoot%20the%20ReVerse%20Community%20Backend.%20Use%20this%20GitHub%20repository%20as%20context%2C%20especially%20README.md%2C%20SETUP.md%2C%20QUICKSTART-HOST.md%2C%20and%20QUICKSTART-PLAYER.md%3A%20https%3A%2F%2Fgithub.com%2Flannahirave%2Freverse-fanmade)
+
+The badges open the selected provider with a prefilled request containing this
+repository's URL. If the provider cannot access the repository, paste the
+relevant guide into the conversation. Never share secret keys, credentials,
+private URLs, or unsanitized logs with anyone.
+
 ## Running the packages
 
 The backend and relay packages include their .NET runtimes; no .NET installation
