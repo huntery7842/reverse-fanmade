@@ -7,6 +7,7 @@ public sealed class RelaySettings
 {
     public string Username { get; set; } = "";
     public string BackendAddress { get; set; } = "";
+    public string BackendFolder { get; set; } = "";
     [JsonIgnore]
     public string SecretKey { get; set; } = "";
 

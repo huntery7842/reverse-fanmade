@@ -22,6 +22,11 @@
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="FontSize" Value="15" />
     </Style>
+    <Style Selector="Button">
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
     <Style Selector="Button.primary">
       <Setter Property="Height" Value="50" />
       <Setter Property="CornerRadius" Value="12" />
@@ -29,7 +34,9 @@
       <Setter Property="Foreground" Value="#071016" />
       <Setter Property="FontSize" Value="15" />
       <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.secondary">
       <Setter Property="Height" Value="44" />
@@ -39,6 +46,8 @@
       <Setter Property="BorderBrush" Value="#293750" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
   </Application.Styles>
 </Application>

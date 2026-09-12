@@ -36,11 +36,17 @@ jobs:
       - name: Build desktop relay
         run: dotnet build player-relay/Relay.Avalonia/Relay.Avalonia.csproj --configuration Release
 
+      - name: Build desktop relay checks
+        run: dotnet build player-relay/Relay.Avalonia.Checks/Relay.Avalonia.Checks.csproj --configuration Release
+
       - name: Run provider tests
         run: dotnet run --project provider-tests/Provider.Tests.csproj --configuration Release --no-build
 
       - name: Run signaling tests
         run: dotnet run --project signaling-tests/Signaling.Tests.csproj --configuration Release --no-build
+
+      - name: Run desktop relay checks
+        run: dotnet run --project player-relay/Relay.Avalonia.Checks/Relay.Avalonia.Checks.csproj --configuration Release --no-build
 
       - name: Publish backend
         run: dotnet publish backend/ReVerse.Capture.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/backend

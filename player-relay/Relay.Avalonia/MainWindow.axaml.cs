@@ -3,6 +3,7 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using ReVerse.Relay;
 
@@ -15,6 +16,7 @@ public sealed partial class MainWindow : Window
     private static readonly IBrush WorkingBrush = new SolidColorBrush(Color.Parse("#F6C85F"));
     private static readonly IBrush RunningBrush = new SolidColorBrush(Color.Parse("#68D391"));
     private static readonly IBrush ErrorBrush = new SolidColorBrush(Color.Parse("#FC8181"));
+    private readonly BackendHostController backendHost = new();
     private RelaySettings settings = new();
     private RelayService? service;
     private bool busy;
@@ -24,6 +26,12 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         Closed += (_, _) => StopForShutdown();
         LoadSettings();
+        BackendHostPanel.IsVisible = OperatingSystem.IsWindows();
+        if (OperatingSystem.IsWindows())
+        {
+            backendHost.RunningChanged += OnBackendRunningChanged;
+            Opened += async (_, _) => await DetectZeroTierAddressAsync();
+        }
     }
 
     private void LoadSettings()
@@ -33,6 +41,7 @@ public sealed partial class MainWindow : Window
             settings = RelaySettings.Load();
             UsernameEntry.Text = settings.Username;
             BackendEntry.Text = settings.BackendAddress;
+            HostFolderEntry.Text = settings.BackendFolder;
         }
         catch (Exception ex)
         {
@@ -158,11 +167,159 @@ public sealed partial class MainWindow : Window
         CopyButton.Content = "Copy";
     }
 
+    private void OnHostConfigurationChanged(object? sender, TextChangedEventArgs e)
+    {
+        UpdateHostCommand();
+    }
+
+    private async void OnDetectAddress(object? sender, RoutedEventArgs e)
+    {
+        await DetectZeroTierAddressAsync();
+    }
+
+    private async Task DetectZeroTierAddressAsync()
+    {
+        DetectAddressButton.IsEnabled = false;
+        BackendHostStatusText.Text = "Reading ipconfig…";
+        BackendHostStatusText.Foreground = WorkingBrush;
+        try
+        {
+            var address = await ZeroTierHost.DetectAddressAsync();
+            if (address is null)
+                throw new InvalidOperationException("No active ZeroTier IPv4 address was found. Connect ZeroTier or enter the address manually.");
+            ZeroTierAddressEntry.Text = address;
+            BackendHostStatusText.Text = "ZeroTier address detected";
+            BackendHostStatusText.Foreground = RunningBrush;
+        }
+        catch (Exception ex)
+        {
+            BackendHostStatusText.Text = ex.Message;
+            BackendHostStatusText.Foreground = ErrorBrush;
+        }
+        finally
+        {
+            DetectAddressButton.IsEnabled = !backendHost.IsRunning;
+            UpdateHostCommand();
+        }
+    }
+
+    private async void OnBrowseBackendFolder(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "Select the backend folder",
+                AllowMultiple = false
+            });
+            if (folders.Count == 0)
+                return;
+            HostFolderEntry.Text = folders[0].Path.LocalPath;
+            settings.BackendFolder = HostFolderEntry.Text;
+            settings.Save();
+            UpdateHostCommand();
+        }
+        catch (Exception ex)
+        {
+            BackendHostStatusText.Text = ex.Message;
+            BackendHostStatusText.Foreground = ErrorBrush;
+        }
+    }
+
+    private void UpdateHostCommand()
+    {
+        var folder = HostFolderEntry.Text?.Trim() ?? "";
+        var address = ZeroTierAddressEntry.Text?.Trim() ?? "";
+        try
+        {
+            if (folder.Length == 0 || address.Length == 0)
+            {
+                BackendCommandEntry.Text = "";
+                PlayerBackendUrlText.Text = "Select the backend folder and detect the ZeroTier address.";
+                StartBackendButton.IsEnabled = false;
+                return;
+            }
+            BackendCommandEntry.Text = ZeroTierHost.BuildCommand(folder, address);
+            PlayerBackendUrlText.Text = $"Players use backend address: {ZeroTierHost.BuildBackendUrl(address)}";
+            StartBackendButton.IsEnabled = !backendHost.IsRunning && File.Exists(Path.Combine(folder.Trim('"'), "Start-Backend.cmd"));
+        }
+        catch (Exception ex)
+        {
+            BackendCommandEntry.Text = "";
+            PlayerBackendUrlText.Text = ex.Message;
+            StartBackendButton.IsEnabled = false;
+        }
+    }
+
+    private void OnStartBackend(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var folder = HostFolderEntry.Text?.Trim() ?? "";
+            var address = ZeroTierAddressEntry.Text?.Trim() ?? "";
+            settings.BackendFolder = folder;
+            settings.Save();
+            backendHost.Start(folder, address);
+            BackendHostStatusText.Text = "Backend running in a separate command window";
+            BackendHostStatusText.Foreground = RunningBrush;
+        }
+        catch (Exception ex)
+        {
+            BackendHostStatusText.Text = ex.Message;
+            BackendHostStatusText.Foreground = ErrorBrush;
+        }
+    }
+
+    private async void OnStopBackend(object? sender, RoutedEventArgs e)
+    {
+        StopBackendButton.IsEnabled = false;
+        BackendHostStatusText.Text = "Stopping backend…";
+        BackendHostStatusText.Foreground = WorkingBrush;
+        try
+        {
+            await backendHost.StopAsync();
+            BackendHostStatusText.Text = "Backend stopped";
+            BackendHostStatusText.Foreground = StoppedBrush;
+        }
+        catch (Exception ex)
+        {
+            BackendHostStatusText.Text = ex.Message;
+            BackendHostStatusText.Foreground = ErrorBrush;
+        }
+        UpdateHostCommand();
+    }
+
+    private void OnBackendRunningChanged(bool running)
+    {
+        Dispatcher.UIThread.Post(() => SetBackendRunning(running));
+    }
+
+    private void SetBackendRunning(bool running)
+    {
+        HostFolderEntry.IsEnabled = !running;
+        BrowseBackendButton.IsEnabled = !running;
+        ZeroTierAddressEntry.IsEnabled = !running;
+        DetectAddressButton.IsEnabled = !running;
+        StartBackendButton.IsEnabled = !running;
+        StopBackendButton.IsEnabled = running;
+        if (!running)
+        {
+            BackendHostStatusText.Text = "Backend stopped";
+            BackendHostStatusText.Foreground = StoppedBrush;
+            UpdateHostCommand();
+        }
+    }
+
     private void StopForShutdown()
     {
         var old = service;
         service = null;
-        if (old is not null)
-            Task.Run(async () => await old.DisposeAsync()).GetAwaiter().GetResult();
+        backendHost.RunningChanged -= OnBackendRunningChanged;
+        Task.Run(async () =>
+        {
+            if (old is not null)
+                await old.DisposeAsync();
+            await backendHost.DisposeAsync();
+        }).GetAwaiter().GetResult();
     }
 }
