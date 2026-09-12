@@ -240,20 +240,37 @@ public sealed partial class MainWindow : Window
             if (folder.Length == 0 || address.Length == 0)
             {
                 BackendCommandEntry.Text = "";
-                PlayerBackendUrlText.Text = "Select the backend folder and detect the ZeroTier address.";
+                PlayerBackendUrlEntry.Text = "";
+                CopyBackendUrlButton.IsEnabled = false;
                 StartBackendButton.IsEnabled = false;
                 return;
             }
             BackendCommandEntry.Text = ZeroTierHost.BuildCommand(folder, address);
-            PlayerBackendUrlText.Text = $"Players use backend address: {ZeroTierHost.BuildBackendUrl(address)}";
+            PlayerBackendUrlEntry.Text = ZeroTierHost.BuildBackendUrl(address);
+            CopyBackendUrlButton.IsEnabled = true;
             UpdateStartBackendAvailability();
         }
         catch (Exception ex)
         {
             BackendCommandEntry.Text = "";
-            PlayerBackendUrlText.Text = ex.Message;
+            PlayerBackendUrlEntry.Text = "";
+            CopyBackendUrlButton.IsEnabled = false;
+            BackendHostStatusText.Text = ex.Message;
+            BackendHostStatusText.Foreground = ErrorBrush;
             StartBackendButton.IsEnabled = false;
         }
+    }
+
+    private async void OnCopyBackendUrlClicked(object? sender, RoutedEventArgs e)
+    {
+        var clipboard = GetTopLevel(this)?.Clipboard;
+        var url = PlayerBackendUrlEntry.Text;
+        if (clipboard is null || string.IsNullOrWhiteSpace(url))
+            return;
+        await clipboard.SetTextAsync(url);
+        CopyBackendUrlButton.Content = "Copied";
+        await Task.Delay(1200);
+        CopyBackendUrlButton.Content = "Copy";
     }
 
     private void OnStartBackend(object? sender, RoutedEventArgs e)

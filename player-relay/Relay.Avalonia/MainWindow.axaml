@@ -79,8 +79,15 @@
             <StackPanel Spacing="0">
               <TextBlock Text="COMMAND" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
               <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="74" AcceptsReturn="False" TextWrapping="Wrap" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextChanged="OnBackendCommandChanged" />
-              <TextBlock x:Name="PlayerBackendUrlText" Margin="2,7,0,0" FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
               <TextBlock Text="Edit -Players 2 to choose a match size from 2 to 10." Margin="2,4,0,0" FontSize="12" Foreground="#9FB0C8" />
+            </StackPanel>
+
+            <StackPanel Spacing="0">
+              <TextBlock Text="PLAYER BACKEND URL" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
+              <Grid ColumnDefinitions="*,78" ColumnSpacing="8">
+                <TextBox x:Name="PlayerBackendUrlEntry" Classes="form-field" Height="44" IsReadOnly="True" PlaceholderText="Detect ZeroTier to generate the URL" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" />
+                <Button x:Name="CopyBackendUrlButton" Grid.Column="1" Classes="secondary" Content="Copy" IsEnabled="False" VerticalAlignment="Bottom" Click="OnCopyBackendUrlClicked" />
+              </Grid>
             </StackPanel>
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
