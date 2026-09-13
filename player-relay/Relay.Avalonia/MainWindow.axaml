@@ -87,13 +87,19 @@
                 <TextBox x:Name="ZeroTierAddressEntry" Classes="form-field" PlaceholderText="Detecting…" TextChanged="OnHostConfigurationChanged" />
                 <Button x:Name="DetectAddressButton" Grid.Column="1" Classes="secondary" Content="Detect" VerticalAlignment="Bottom" Click="OnDetectAddress" />
               </Grid>
+              <TextBlock x:Name="ZeroTierStatusText" IsVisible="False" Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
               <TextBlock Text="This is the host address on ZeroTier. Other players must be able to reach it; do not use 127.0.0.1. Detect checks ipconfig on Windows and ZeroTier network interfaces on Linux." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <StackPanel Spacing="0">
+              <TextBlock Text="PLAYERS" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
+              <NumericUpDown x:Name="PlayersEntry" Classes="form-field" Minimum="2" Maximum="10" Increment="1" FormatString="0" ValueChanged="OnPlayerCountChanged" />
+              <TextBlock Text="Number of players required to start a match, from 2 to 10." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">
               <TextBlock Text="COMMAND" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
               <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="132" AcceptsReturn="False" TextWrapping="Wrap" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextChanged="OnBackendCommandChanged" />
-              <TextBlock Text="Review before starting: the command configures the backend address, signaling, and matchmaking settings before launching the executable." Margin="2,4,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">

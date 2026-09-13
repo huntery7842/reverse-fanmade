@@ -20,11 +20,13 @@ public sealed partial class MainWindow : Window
     private readonly BackendHostController backendHost = new();
     private RelaySettings settings = new();
     private RelayService? service;
+    private string? detectedZeroTierAddress;
     private bool busy;
 
     public MainWindow()
     {
         InitializeComponent();
+        PlayersEntry.Value = 2;
         Closed += (_, _) => StopForShutdown();
         LoadSettings();
         BackendHostPanel.IsVisible = SupportsBackendHosting;
@@ -43,6 +45,7 @@ public sealed partial class MainWindow : Window
             UsernameEntry.Text = settings.Username;
             BackendEntry.Text = settings.BackendAddress;
             HostFolderEntry.Text = settings.BackendFolder;
+            PlayersEntry.Value = Math.Clamp(settings.BackendPlayers, 2, 10);
         }
         catch (Exception ex)
         {
@@ -170,6 +173,14 @@ public sealed partial class MainWindow : Window
 
     private void OnHostConfigurationChanged(object? sender, TextChangedEventArgs e)
     {
+        if (ReferenceEquals(sender, ZeroTierAddressEntry) &&
+            !ZeroTierHost.IsDetectedAddress(ZeroTierAddressEntry.Text, detectedZeroTierAddress))
+            ZeroTierStatusText.IsVisible = false;
+        UpdateHostCommand();
+    }
+
+    private void OnPlayerCountChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
         UpdateHostCommand();
     }
 
@@ -186,21 +197,27 @@ public sealed partial class MainWindow : Window
     private async Task DetectZeroTierAddressAsync()
     {
         DetectAddressButton.IsEnabled = false;
-        BackendHostStatusText.Text = "Detecting ZeroTier address…";
-        BackendHostStatusText.Foreground = WorkingBrush;
+        detectedZeroTierAddress = null;
+        ZeroTierStatusText.Text = "Detecting ZeroTier address…";
+        ZeroTierStatusText.Foreground = WorkingBrush;
+        ZeroTierStatusText.IsVisible = true;
         try
         {
             var address = await ZeroTierHost.DetectAddressAsync();
             if (address is null)
                 throw new InvalidOperationException("No active ZeroTier IPv4 address was found. Connect ZeroTier or enter the address manually.");
+            detectedZeroTierAddress = address;
             ZeroTierAddressEntry.Text = address;
-            BackendHostStatusText.Text = "ZeroTier address detected";
-            BackendHostStatusText.Foreground = RunningBrush;
+            ZeroTierStatusText.Text = "ZeroTier address detected";
+            ZeroTierStatusText.Foreground = RunningBrush;
+            ZeroTierStatusText.IsVisible = true;
         }
         catch (Exception ex)
         {
-            BackendHostStatusText.Text = ex.Message;
-            BackendHostStatusText.Foreground = ErrorBrush;
+            detectedZeroTierAddress = null;
+            ZeroTierStatusText.Text = ex.Message;
+            ZeroTierStatusText.Foreground = ErrorBrush;
+            ZeroTierStatusText.IsVisible = true;
         }
         finally
         {
@@ -246,7 +263,8 @@ public sealed partial class MainWindow : Window
                 StartBackendButton.IsEnabled = false;
                 return;
             }
-            BackendCommandEntry.Text = ZeroTierHost.BuildCommand(folder, address);
+            var players = decimal.ToInt32(PlayersEntry.Value ?? 2);
+            BackendCommandEntry.Text = ZeroTierHost.BuildCommand(folder, address, players);
             PlayerBackendUrlEntry.Text = ZeroTierHost.BuildBackendUrl(address);
             CopyBackendUrlButton.IsEnabled = true;
             UpdateStartBackendAvailability();
@@ -285,6 +303,7 @@ public sealed partial class MainWindow : Window
                 throw new InvalidOperationException("Detect a valid ZeroTier address before starting the backend.");
             settings.BackendFolder = folder;
             settings.BackendAddress = backendUrl;
+            settings.BackendPlayers = decimal.ToInt32(PlayersEntry.Value ?? 2);
             settings.Save();
             backendHost.Start(folder, command);
             BackendEntry.Text = backendUrl;
@@ -327,6 +346,7 @@ public sealed partial class MainWindow : Window
         HostFolderEntry.IsEnabled = !running;
         BrowseBackendButton.IsEnabled = !running;
         ZeroTierAddressEntry.IsEnabled = !running;
+        PlayersEntry.IsEnabled = !running;
         DetectAddressButton.IsEnabled = !running;
         StartBackendButton.IsEnabled = !running;
         StopBackendButton.IsEnabled = running;

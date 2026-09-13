@@ -156,16 +156,18 @@ public static partial class ZeroTierHost
         return null;
     }
 
-    public static string BuildCommand(string backendFolder, string address)
+    public static string BuildCommand(string backendFolder, string address, int players)
     {
         var folder = Path.GetFullPath(backendFolder.Trim().Trim('"'));
         var ip = ValidateAddress(address);
+        if (players is < 2 or > 10)
+            throw new ArgumentOutOfRangeException(nameof(players), "Player count must be between 2 and 10.");
         var settings = new[]
         {
             "Relay__Enabled=true",
             "Steam__Mode=fallback",
             "Matchmaking__ExperimentalSessionProtocol=true",
-            "Matchmaking__Rulesets__match_master=2",
+            $"Matchmaking__Rulesets__match_master={players}",
             "Matchmaking__IgnorePlayerAttributes=true",
             $"ASPNETCORE_URLS={BuildBackendUrl(ip)}",
             "Signaling__Enabled=true",
@@ -194,6 +196,9 @@ public static partial class ZeroTierHost
         Path.Combine(Path.GetFullPath(backendFolder.Trim().Trim('"')), BackendEntryName);
 
     public static string BuildBackendUrl(string address) => $"http://{ValidateAddress(address)}:6080";
+
+    public static bool IsDetectedAddress(string? currentAddress, string? detectedAddress) =>
+        detectedAddress is not null && string.Equals(currentAddress?.Trim(), detectedAddress, StringComparison.Ordinal);
 
     private static string ValidateAddress(string address)
     {
