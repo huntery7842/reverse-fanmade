@@ -67,7 +67,8 @@ jobs:
         run: dotnet publish backend/ReVerse.Capture.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/backend
 
       - name: Publish Windows relay
-        run: dotnet publish player-relay/Relay.Avalonia/Relay.Avalonia.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/relay
+        shell: pwsh
+        run: ./Publish-Relay-Windows.ps1
 
       - name: Package artifacts
         shell: pwsh
@@ -120,7 +121,14 @@ jobs:
           if-no-files-found: error
 
       - name: Publish Linux relay
-        run: dotnet publish player-relay/Relay.Avalonia/Relay.Avalonia.csproj --configuration Release --runtime linux-x64 --self-contained true --output artifacts/relay
+        run: |
+          dotnet publish player-relay/Relay.Avalonia/Relay.Avalonia.csproj --configuration Release --runtime linux-x64 --self-contained true -p:NuGetAudit=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false --output artifacts/relay
+          find artifacts/relay -maxdepth 1 -type f -name '*.pdb' -delete
+          mapfile -t relay_files < <(find artifacts/relay -maxdepth 1 -type f -print)
+          if [[ "${#relay_files[@]}" -ne 1 || "${relay_files[0]}" != "artifacts/relay/Relay.Avalonia" ]]; then
+            printf 'Expected one published file named Relay.Avalonia, found:\n%s\n' "${relay_files[*]}" >&2
+            exit 1
+          fi
 
       - name: Package Linux relay
         run: |
