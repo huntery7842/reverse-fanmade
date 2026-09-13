@@ -64,10 +64,10 @@
             <StackPanel Spacing="0">
               <TextBlock Text="BACKEND FOLDER" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
               <Grid ColumnDefinitions="*,88" ColumnSpacing="8">
-                <TextBox x:Name="HostFolderEntry" Classes="form-field" PlaceholderText="Select the folder containing Start-Backend.cmd" TextChanged="OnHostConfigurationChanged" />
+                <TextBox x:Name="HostFolderEntry" Classes="form-field" PlaceholderText="Select the extracted backend folder" TextChanged="OnHostConfigurationChanged" />
                 <Button x:Name="BrowseBackendButton" Grid.Column="1" Classes="secondary" Content="Browse" VerticalAlignment="Bottom" Click="OnBrowseBackendFolder" />
               </Grid>
-              <TextBlock Text="Choose the extracted backend folder, not the ZIP file. It must contain Start-Backend.cmd; this app uses that script to launch the backend." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
+              <TextBlock Text="Choose the extracted backend folder, not the ZIP file. Windows needs Start-Backend.cmd; Linux and Steam Deck need ReVerse.Capture. The app makes it executable when possible." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">
@@ -76,13 +76,13 @@
                 <TextBox x:Name="ZeroTierAddressEntry" Classes="form-field" PlaceholderText="Detecting…" TextChanged="OnHostConfigurationChanged" />
                 <Button x:Name="DetectAddressButton" Grid.Column="1" Classes="secondary" Content="Detect" VerticalAlignment="Bottom" Click="OnDetectAddress" />
               </Grid>
-              <TextBlock Text="This is the host address on ZeroTier. Other players must be able to reach it; do not use 127.0.0.1. Detect reads ipconfig, or you can type the address manually." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
+              <TextBlock Text="This is the host address on ZeroTier. Other players must be able to reach it; do not use 127.0.0.1. Detect checks ipconfig on Windows and ZeroTier network interfaces on Linux." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">
               <TextBlock Text="COMMAND" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-              <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="74" AcceptsReturn="False" TextWrapping="Wrap" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextChanged="OnBackendCommandChanged" />
-              <TextBlock Text="Review before starting: -PublicHost is the address advertised to players, -HttpUrl is the player URL, and -Players sets the match size from 2 to 10." Margin="2,4,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
+              <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="132" AcceptsReturn="False" TextWrapping="Wrap" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextChanged="OnBackendCommandChanged" />
+              <TextBlock Text="Review before starting: Windows uses -PublicHost, -HttpUrl, and -Players. Linux uses the equivalent environment settings, including Matchmaking__Rulesets__match_master for the match size from 2 to 10." Margin="2,4,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">
@@ -98,7 +98,7 @@
               <Button x:Name="StartBackendButton" Classes="primary" Content="Start backend" Click="OnStartBackend" />
               <Button x:Name="StopBackendButton" Grid.Column="1" Classes="secondary" Content="Stop backend" IsEnabled="False" Click="OnStopBackend" />
             </Grid>
-            <TextBlock Text="Start backend opens a separate command window; keep it open while playing. Stop backend closes the backend process." FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
+            <TextBlock Text="Start backend launches the process (and opens a separate command window on Windows). Keep this app open while playing; backend logs are written in the backend folder." FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             <TextBlock x:Name="BackendHostStatusText" Text="Backend stopped" FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
           </StackPanel>
         </Border>

@@ -86,16 +86,25 @@ multiple accounts when their secret keys differ.
 ## 6. Linux or Steam Deck host
 
 The backend and Avalonia relay packages include their .NET runtime. The
-Windows host panel is not available on Linux, so start the backend from a
-terminal instead.
+Avalonia host panel also works on Linux and Steam Deck.
 
-After extracting the Linux backend package, make the executable runnable:
+1. Extract the backend and relay packages.
+2. Start `Relay.Avalonia`.
+3. In **Host backend**, click **Browse** and select the folder containing
+   `ReVerse.Capture`.
+4. Click **Detect** and verify the ZeroTier address.
+5. Review the generated command. Change
+   `Matchmaking__Rulesets__match_master=2` to the desired match size from 2
+   through 10.
+6. Click **Start backend**. The app makes the executable runnable when
+   necessary, starts the backend, and fills the local
+   **Backend server** field automatically.
+7. Copy the displayed player backend URL and give it to the other players.
+8. Use **Stop backend** in the app when finished.
 
-```bash
-chmod +x ReVerse.Capture
-```
-
-Replace `10.205.138.26` below with the host's ZeroTier IPv4 address, then run:
+The long terminal form remains available if you do not want to use the host
+panel. Replace `10.205.138.26` below with the host's ZeroTier IPv4 address,
+then run:
 
 ```bash
 export Relay__Enabled=true

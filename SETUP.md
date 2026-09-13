@@ -16,9 +16,9 @@ install .NET. Extract the entire package before running it. Source builds
 require the .NET 10 SDK.
 
 The Avalonia relay runs on Windows and Linux. Its **Host backend** panel is
-available on Windows, where it can detect ZeroTier through `ipconfig` and open
-the Windows backend launcher. Linux and Steam Deck hosts start the backend
-from a terminal using the commands below.
+available on both platforms: Windows hosts use `Start-Backend.cmd`, while Linux
+and Steam Deck hosts use the executable `ReVerse.Capture`. The app detects the
+ZeroTier address on each platform and starts or stops the backend for you.
 
 ## Get the packages
 
@@ -107,14 +107,30 @@ the explicit ZeroTier address is also supported.
 
 ## Start the backend on Linux or Steam Deck
 
+### Through the Avalonia app
+
+1. Extract the backend and relay packages.
+2. Start `Relay.Avalonia` from the relay package.
+3. In **Host backend**, click **Browse** and select the folder containing
+   `ReVerse.Capture`.
+4. Click **Detect** and verify the ZeroTier IPv4 address.
+5. Review the generated command. Change
+   `Matchmaking__Rulesets__match_master=2` to a value from 2 through 10 if
+   needed.
+6. Click **Start backend**. The app makes `ReVerse.Capture` executable when
+   necessary, starts the backend process, and fills the
+   local **Backend server** field with the generated player URL.
+7. Give that URL to the other players. Use **Stop backend** in the app when
+   the session is over.
+
+The backend logs remain in the backend folder's `logs` directory. If the app
+cannot change the file permission, run `chmod +x ReVerse.Capture` once from the
+selected folder and start the backend again.
+
+### Manual fallback
+
 The Linux backend package contains the self-contained `ReVerse.Capture`
 executable. The Windows `Start-Backend.cmd` is not used on Linux.
-
-After extracting the package, run:
-
-```bash
-chmod +x ReVerse.Capture
-```
 
 Replace the example address, then start the backend:
 

@@ -12,6 +12,7 @@ namespace ReVerse.Relay.Desktop;
 public sealed partial class MainWindow : Window
 {
     private const string LaunchOptions = "/Rebe/HjmUriStr:http://127.0.0.1:5080";
+    private static bool SupportsBackendHosting => OperatingSystem.IsWindows() || OperatingSystem.IsLinux();
     private static readonly IBrush StoppedBrush = new SolidColorBrush(Color.Parse("#9FB0C8"));
     private static readonly IBrush WorkingBrush = new SolidColorBrush(Color.Parse("#F6C85F"));
     private static readonly IBrush RunningBrush = new SolidColorBrush(Color.Parse("#68D391"));
@@ -26,8 +27,8 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         Closed += (_, _) => StopForShutdown();
         LoadSettings();
-        BackendHostPanel.IsVisible = OperatingSystem.IsWindows();
-        if (OperatingSystem.IsWindows())
+        BackendHostPanel.IsVisible = SupportsBackendHosting;
+        if (SupportsBackendHosting)
         {
             backendHost.RunningChanged += OnBackendRunningChanged;
             Opened += async (_, _) => await DetectZeroTierAddressAsync();
@@ -185,7 +186,7 @@ public sealed partial class MainWindow : Window
     private async Task DetectZeroTierAddressAsync()
     {
         DetectAddressButton.IsEnabled = false;
-        BackendHostStatusText.Text = "Reading ipconfig…";
+        BackendHostStatusText.Text = "Detecting ZeroTier address…";
         BackendHostStatusText.Foreground = WorkingBrush;
         try
         {
@@ -342,7 +343,7 @@ public sealed partial class MainWindow : Window
         var folder = HostFolderEntry.Text?.Trim().Trim('"') ?? "";
         StartBackendButton.IsEnabled = !backendHost.IsRunning &&
                                        !string.IsNullOrWhiteSpace(BackendCommandEntry.Text) &&
-                                       File.Exists(Path.Combine(folder, "Start-Backend.cmd"));
+                                       File.Exists(ZeroTierHost.GetBackendEntryPath(folder));
     }
 
     private void StopForShutdown()
