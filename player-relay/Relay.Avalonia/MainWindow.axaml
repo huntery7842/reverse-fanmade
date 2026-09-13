@@ -78,7 +78,7 @@
                 <TextBox x:Name="HostFolderEntry" Classes="form-field" PlaceholderText="Select the extracted backend folder" TextChanged="OnHostConfigurationChanged" />
                 <Button x:Name="BrowseBackendButton" Grid.Column="1" Classes="secondary" Content="Browse" VerticalAlignment="Bottom" Click="OnBrowseBackendFolder" />
               </Grid>
-              <TextBlock Text="Choose the extracted backend folder, not the ZIP file. Windows needs Start-Backend.cmd; Linux and Steam Deck need ReVerse.Capture. The app makes it executable when possible." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
+              <TextBlock Text="Choose the extracted backend folder, not the ZIP file. Windows needs ReVerse.Capture.exe; Linux and Steam Deck need ReVerse.Capture. The app makes it executable when possible." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">
@@ -93,7 +93,7 @@
             <StackPanel Spacing="0">
               <TextBlock Text="COMMAND" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
               <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="132" AcceptsReturn="False" TextWrapping="Wrap" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextChanged="OnBackendCommandChanged" />
-              <TextBlock Text="Review before starting: Windows uses -PublicHost, -HttpUrl, and -Players. Linux uses the equivalent environment settings, including Matchmaking__Rulesets__match_master for the match size from 2 to 10." Margin="2,4,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
+              <TextBlock Text="Review before starting: the command configures the backend address, signaling, and matchmaking settings before launching the executable." Margin="2,4,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">

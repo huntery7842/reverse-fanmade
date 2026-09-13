@@ -35,13 +35,17 @@ builder.Services.AddSingleton(steam);
 builder.Services.AddSingleton(new RequestLog(Path.GetFullPath(capture.LogDirectory, builder.Environment.ContentRootPath)));
 builder.Services.AddSingleton(_ =>
 {
-    var overrides = new ResponseOverrides(Path.Combine(builder.Environment.ContentRootPath, "responses.json"));
+    var overrides = new ResponseOverrides(
+        Path.Combine(builder.Environment.ContentRootPath, "responses.json"),
+        BundledResources.Read("responses.json"));
     overrides.Load();
     return overrides;
 });
 builder.Services.AddSingleton(_ =>
 {
-    var contract = new ContractOverrides(Path.Combine(builder.Environment.ContentRootPath, "contract.json"));
+    var contract = new ContractOverrides(
+        Path.Combine(builder.Environment.ContentRootPath, "contract.json"),
+        BundledResources.Read("contract.json"));
     contract.Load();
     return contract;
 });

@@ -33,8 +33,10 @@ var folder = Path.Combine(Path.GetTempPath(), "Backend Folder");
 var command = ZeroTierHost.BuildCommand(folder, "10.205.138.26");
 if (OperatingSystem.IsWindows())
 {
-    var launcher = Path.Combine(Path.GetFullPath(folder), "Start-Backend.cmd");
-    Check(command == $"\"{launcher}\" -PublicHost 10.205.138.26 -HttpUrl http://10.205.138.26:6080 -Players 2", "Windows backend command generated and quoted");
+    var launcher = Path.Combine(Path.GetFullPath(folder), "ReVerse.Capture.exe");
+    Check(command.StartsWith("set \"Relay__Enabled=true\" && set \"Steam__Mode=fallback\"", StringComparison.Ordinal), "Windows backend environment generated");
+    Check(command.Contains("set \"Matchmaking__Rulesets__match_master=2\"", StringComparison.Ordinal), "Windows match size included");
+    Check(command.EndsWith($"\"{launcher}\"", StringComparison.Ordinal), "Windows backend executable included and quoted");
 }
 else if (OperatingSystem.IsLinux())
 {

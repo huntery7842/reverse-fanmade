@@ -11,7 +11,7 @@ public static partial class ZeroTierHost
 {
     private static readonly TimeSpan DetectionTimeout = TimeSpan.FromSeconds(5);
     private const string DetectionTimeoutMessage = "Could not detect the ZeroTier IP address within 5 seconds.";
-    public static string BackendEntryName => OperatingSystem.IsWindows() ? "Start-Backend.cmd" : "ReVerse.Capture";
+    public static string BackendEntryName => OperatingSystem.IsWindows() ? "ReVerse.Capture.exe" : "ReVerse.Capture";
 
     public static async Task<string?> DetectAddressAsync(CancellationToken cancellationToken = default)
     {
@@ -160,24 +160,32 @@ public static partial class ZeroTierHost
     {
         var folder = Path.GetFullPath(backendFolder.Trim().Trim('"'));
         var ip = ValidateAddress(address);
+        var settings = new[]
+        {
+            "Relay__Enabled=true",
+            "Steam__Mode=fallback",
+            "Matchmaking__ExperimentalSessionProtocol=true",
+            "Matchmaking__Rulesets__match_master=2",
+            "Matchmaking__IgnorePlayerAttributes=true",
+            $"ASPNETCORE_URLS={BuildBackendUrl(ip)}",
+            "Signaling__Enabled=true",
+            "Signaling__PeerDiagnostics=true",
+            "Signaling__BindAddress=0.0.0.0",
+            $"Signaling__PublicHost={ip}",
+            "Signaling__Port=5070",
+            "Signaling__PublicPort=5070",
+            "Signaling__ExperimentalReplies=true",
+            "Signaling__Reply19=1",
+            "Signaling__Reply21=1",
+            "Signaling__RegistrationFieldBIsPeerNumber=true"
+        };
         return OperatingSystem.IsWindows()
-            ? $"\"{Path.Combine(folder, BackendEntryName)}\" -PublicHost {ip} -HttpUrl {BuildBackendUrl(ip)} -Players 2"
+            ? string.Join(" && ", settings.Select(setting => $"set \"{setting}\"")) +
+              $" && \"{Path.Combine(folder, BackendEntryName)}\""
             : string.Join(' ',
             [
                 "env",
-                "Relay__Enabled=true",
-                "Steam__Mode=fallback",
-                "Matchmaking__ExperimentalSessionProtocol=true",
-                "Matchmaking__Rulesets__match_master=2",
-                "Matchmaking__IgnorePlayerAttributes=true",
-                $"ASPNETCORE_URLS={BuildBackendUrl(ip)}",
-                "Signaling__Enabled=true",
-                "Signaling__PeerDiagnostics=true",
-                "Signaling__BindAddress=0.0.0.0",
-                $"Signaling__PublicHost={ip}",
-                "Signaling__Port=5070",
-                "Signaling__PublicPort=5070",
-                "Signaling__ExperimentalReplies=true",
+                .. settings,
                 $"./{BackendEntryName}"
             ]);
     }

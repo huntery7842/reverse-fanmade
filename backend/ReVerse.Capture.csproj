@@ -7,11 +7,22 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
-    <EmbeddedResource Include="Persistence/Schema/001_saves.sql" />
+    <EmbeddedResource Include="Persistence/Schema/001_saves.sql;contract.json;responses.json" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Start-Backend.cmd;Start-FieldTest.ps1" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(PublishSingleFile)' == 'true'">
+    <Content Remove="artifacts/**" />
+    <None Remove="artifacts/**" />
+    <Content Update="appsettings.json;contract.json;responses.json" ExcludeFromSingleFile="false" />
+    <Content Update="global.json" CopyToPublishDirectory="Never" />
+    <None Update="Start-Backend.cmd;Start-FieldTest.ps1" CopyToPublishDirectory="Never" />
   </ItemGroup>
 </Project>

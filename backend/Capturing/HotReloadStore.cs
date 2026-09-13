@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Reflection;
 
 namespace ReVerse.Capture.Capturing;
 
@@ -9,13 +10,15 @@ namespace ReVerse.Capture.Capturing;
 public abstract class HotReloadStore<TEntry> : IDisposable where TEntry : class
 {
     private readonly string _filePath;
+    private readonly string? _defaultJson;
     private readonly FileSystemWatcher _watcher;
     private readonly object _lock = new();
     private Dictionary<string, TEntry> _entries = new(StringComparer.OrdinalIgnoreCase);
 
-    protected HotReloadStore(string filePath)
+    protected HotReloadStore(string filePath, string? defaultJson = null)
     {
         _filePath = filePath;
+        _defaultJson = defaultJson;
         var directory = Path.GetDirectoryName(filePath)!;
         var fileName = Path.GetFileName(filePath);
         _watcher = new FileSystemWatcher(directory, fileName)
@@ -48,7 +51,8 @@ public abstract class HotReloadStore<TEntry> : IDisposable where TEntry : class
     {
         if (!File.Exists(_filePath))
         {
-            lock (_lock) { _entries = new Dictionary<string, TEntry>(StringComparer.OrdinalIgnoreCase); }
+            var defaults = _defaultJson is null ? null : Deserialize(_defaultJson);
+            lock (_lock) { _entries = defaults ?? new Dictionary<string, TEntry>(StringComparer.OrdinalIgnoreCase); }
             return;
         }
 
@@ -87,7 +91,7 @@ public sealed class ContractEntry
 
 public sealed class ResponseOverrides : HotReloadStore<ResponseOverrideEntry>
 {
-    public ResponseOverrides(string filePath) : base(filePath) { }
+    public ResponseOverrides(string filePath, string? defaultJson = null) : base(filePath, defaultJson) { }
     protected override Dictionary<string, ResponseOverrideEntry>? Deserialize(string json) =>
         JsonSerializer.Deserialize(json, Serialization.SourceGenerationContext.Default.DictionaryStringResponseOverrideEntry);
 }
@@ -95,7 +99,21 @@ public sealed class ResponseOverrides : HotReloadStore<ResponseOverrideEntry>
 
 public sealed class ContractOverrides : HotReloadStore<ContractEntry>
 {
-    public ContractOverrides(string filePath) : base(filePath) { }
+    public ContractOverrides(string filePath, string? defaultJson = null) : base(filePath, defaultJson) { }
     protected override Dictionary<string, ContractEntry>? Deserialize(string json) =>
         JsonSerializer.Deserialize(json, Serialization.SourceGenerationContext.Default.DictionaryStringContractEntry);
+}
+
+public static class BundledResources
+{
+    public static string Read(string fileName)
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        var resourceName = assembly.GetManifestResourceNames().Single(name =>
+            name.EndsWith($".{fileName}", StringComparison.Ordinal));
+        using var stream = assembly.GetManifestResourceStream(resourceName) ??
+            throw new InvalidOperationException($"Resource {fileName} was not found.");
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
 }
