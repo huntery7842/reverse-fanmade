@@ -44,6 +44,17 @@
           </StackPanel>
         </Border>
 
+        <StackPanel Spacing="8">
+          <TextBlock Text="LAUNCH OPTIONS" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
+          <Grid ColumnDefinitions="*,78" ColumnSpacing="8">
+            <Border Background="#17243A" BorderBrush="#293750" BorderThickness="1" CornerRadius="12" Padding="14,11">
+              <TextBlock Text="/Rebe/HjmUriStr:http://127.0.0.1:5080" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextTrimming="CharacterEllipsis" />
+            </Border>
+            <Button x:Name="CopyButton" Grid.Column="1" Classes="secondary" Content="Copy" Click="OnCopyClicked" />
+          </Grid>
+          <TextBlock Text="Add this value to the application launch options, then start the relay before opening it." FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
+        </StackPanel>
+
         <Border Background="#111C2E" BorderBrush="#293750" BorderThickness="1" CornerRadius="16" Padding="18">
           <Grid ColumnDefinitions="12,*" ColumnSpacing="12">
             <Border x:Name="StatusDot" Width="12" Height="12" CornerRadius="6" Background="#9FB0C8" VerticalAlignment="Center" />
@@ -103,16 +114,6 @@
           </StackPanel>
         </Border>
 
-        <StackPanel Spacing="8">
-          <TextBlock Text="LAUNCH OPTIONS" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-          <Grid ColumnDefinitions="*,78" ColumnSpacing="8">
-            <Border Background="#17243A" BorderBrush="#293750" BorderThickness="1" CornerRadius="12" Padding="14,11">
-              <TextBlock Text="/Rebe/HjmUriStr:http://127.0.0.1:5080" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextTrimming="CharacterEllipsis" />
-            </Border>
-            <Button x:Name="CopyButton" Grid.Column="1" Classes="secondary" Content="Copy" Click="OnCopyClicked" />
-          </Grid>
-          <TextBlock Text="Add this value to the application launch options, then start the relay before opening it." FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
-        </StackPanel>
       </StackPanel>
     </ScrollViewer>
 
