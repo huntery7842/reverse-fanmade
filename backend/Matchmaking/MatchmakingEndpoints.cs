@@ -27,7 +27,8 @@ public sealed class MatchmakingEndpoints(MatchmakingCoordinator coordinator, Gam
     public async Task HandleAsync(HttpContext context)
     {
         const int limit = 256 * 1024;
-        var account = Authenticate(context, state).AccountId;
+        var identity = Authenticate(context, state);
+        var account = identity.AccountId;
         var method = context.Request.Method;
         var path = context.Request.Path.Value ?? "";
         JsonObject? request = null;
@@ -58,7 +59,7 @@ public sealed class MatchmakingEndpoints(MatchmakingCoordinator coordinator, Gam
                 var ids = Header(context, path == "/v1/gameSession" && method == "GET" ? "X-Be-Session-Ids" : "X-Be-Session-Id")
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                 if (ids.Length > 10) throw MatchmakingCoordinator.Error(400, "Too many session IDs.");
-                response = coordinator.SessionRequest(account, path, method, ids, Header(context, "X-Be-Account-Id"), request, read);
+                response = coordinator.SessionRequest(account, identity.Nickname, path, method, ids, Header(context, "X-Be-Account-Id"), request, read);
             }
             else throw MatchmakingCoordinator.Error(404, "Unknown matchmaking route.");
         }

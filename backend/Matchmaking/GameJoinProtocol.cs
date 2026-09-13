@@ -6,7 +6,7 @@ namespace ReVerse.Capture.Matchmaking;
 
 internal static class GameJoinProtocol
 {
-    public static JsonObject ParsePlayer(string account, JsonObject body)
+    public static JsonObject ParsePlayer(string account, string nickname, JsonObject body)
     {
         if (body["players"] is not JsonArray { Count: 1 } players || players[0] is not JsonObject player)
             throw MatchmakingCoordinator.Error(400, "Exactly one player is required.");
@@ -18,11 +18,20 @@ internal static class GameJoinProtocol
         _ = ReadNonce(custom);
         return new JsonObject
         {
-            ["accountId"] = account, ["platform"] = "steam", ["serviceProfiles"] = new JsonArray(),
+            ["accountId"] = account, ["platform"] = "steam", ["serviceProfiles"] = Profiles(account, nickname),
             ["joinState"] = "JOINED", ["joinTimestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             ["customData1"] = custom
         };
     }
+
+    private static JsonArray Profiles(string account, string nickname) => new()
+    {
+        new JsonObject
+        {
+            ["encryptedUserId"] = account, ["service"] = "steam",
+            ["nickname"] = string.IsNullOrWhiteSpace(nickname) ? account : nickname
+        }
+    };
 
     internal static uint ReadNonce(string custom)
     {

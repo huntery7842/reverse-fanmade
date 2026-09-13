@@ -15,9 +15,12 @@ def join_body(account, nonce=123):
             'useCrossPlay': False}
 
 
-def validate_response(body, session):
+def validate_response(body, session, account):
     assert body.get('sessionId') == session, 'Join HTTP callback requires root sessionId'
     assert isinstance(body.get('players'), list) and body['players'], 'Join HTTP callback rejects empty/missing players'
+    assert body['players'][0]['serviceProfiles'] == [
+        {'encryptedUserId': account['id'], 'service': 'steam', 'nickname': account['username']}
+    ], 'serviceProfiles supplies the match display name'
     assert isinstance(body.get('serviceEncryptionKey'), str), 'Missing serviceEncryptionKey'
     assert isinstance(body.get('keyword'), str), 'Missing keyword'
 
@@ -28,6 +31,9 @@ def validate_member(frame, account, nonce):
     player = data['member']['players'][0]
     assert player['accountId'] == account['id']
     assert isinstance(player['platform'], str)
+    assert player['serviceProfiles'] == [
+        {'encryptedUserId': account['id'], 'service': 'steam', 'nickname': account['username']}
+    ], 'Member event supplies the match display name'
     assert player['joinState'] == 'JOINED'
     assert type(player['joinTimestamp']) is int
     assert json.loads(player['customData1']) == {'version': 1, 'nonce': nonce}
@@ -36,14 +42,14 @@ def validate_member(frame, account, nonce):
 def main():
     h = Harness()
     try:
-        a, b = h.account(), h.account()
+        a, b = h.account('name-a'), h.account('name-b')
         wa, wb = h.connect(a), h.connect(b)
         h.request('POST', '/v1/matchmaking/ticket', a, ticket(a)); event(wa, 'tickets:submitted')
         h.request('POST', '/v1/matchmaking/ticket', b, ticket(b)); event(wb, 'tickets:submitted')
         session = offer(wa); assert offer(wb) == session
         headers = {'X-Be-Session-Id': session}
         result = h.request('POST', '/v1/gameSession/member/players', a, join_body(a), headers=headers)
-        validate_response(result, session)
+        validate_response(result, session, a)
         validate_member(event(wa, 'players:created'), a, 123)
         validate_member(event(wb, 'players:created'), a, 123)
         assert h.request('POST', '/v1/gameSession/member/players', a, join_body(a), headers=headers) == result
@@ -51,7 +57,7 @@ def main():
                                   ({'players': [{'accountId': a['id'], 'joinState': 'JOINED', 'customData1': '{}'}]}, 400)):
             h.request('POST', '/v1/gameSession/member/players', a, malformed, headers=headers, expected=status)
         result_b = h.request('POST', '/v1/gameSession/member/players', b, join_body(b, 456), headers=headers)
-        validate_response(result_b, session)
+        validate_response(result_b, session, b)
         validate_member(event(wa, 'players:created'), b, 456)
         validate_member(event(wb, 'players:created'), b, 456)
         assert len(a['id']) == len(b['id']) == 32, 'Game-facing GUIDs must fit the observed 36-character copy'

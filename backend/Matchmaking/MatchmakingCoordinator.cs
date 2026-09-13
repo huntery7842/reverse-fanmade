@@ -92,7 +92,7 @@ public sealed class MatchmakingCoordinator(
         }
     }
 
-    public JsonObject SessionRequest(string account, string path, string method, string[] ids, string? member, JsonObject body, GameSessionRead? read = null)
+    public JsonObject SessionRequest(string account, string nickname, string path, string method, string[] ids, string? member, JsonObject body, GameSessionRead? read = null)
     {
         lock (gate)
         {
@@ -144,7 +144,7 @@ public sealed class MatchmakingCoordinator(
             if (path.EndsWith("/member/players", StringComparison.Ordinal))
             {
                 if (method != "POST") throw Error(405, "Use POST to join.");
-                var player = GameJoinProtocol.ParsePlayer(account, body);
+                var player = GameJoinProtocol.ParsePlayer(account, nickname, body);
                 if (body["useCrossPlay"] is { } crossPlay && crossPlay.GetValue<bool>() != session.UseCrossPlay)
                     throw Error(409, "Join cross-play setting differs from the matched tickets.");
                 if (session.Players.TryGetValue(account, out var joined))

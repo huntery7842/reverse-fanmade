@@ -54,6 +54,8 @@ def main():
             assert current['serviceEncryptionKey'] == reply['serviceEncryptionKey']
             members = {p['accountId']: p for p in current['member']['players']}
             assert members[who['id']]['customData1'] == join_body(who, nonce)['players'][0]['customData1']
+            assert members[who['id']]['serviceProfiles'] == [
+                {'encryptedUserId': who['id'], 'service': 'steam', 'nickname': who['username']}]
             if who is a:
                 assert members[b['id']]['joinState'] == 'RESERVED'
         assert current['gameSessionSequenceNo'] == 3 and current['signaling'] == 'NONE'
