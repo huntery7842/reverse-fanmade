@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="ReVerse.Relay.Desktop.MainWindow"
         Title="ReVerse Relay"
+        Icon="/Assets/relay-icon.png"
         Width="620"
         Height="900"
         MinWidth="460"
@@ -57,7 +58,7 @@
           <StackPanel Spacing="16">
             <StackPanel Spacing="2">
               <TextBlock Text="HOST BACKEND" FontSize="16" FontWeight="SemiBold" />
-              <TextBlock Text="Start the backend on this PC through its ZeroTier address." FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
+              <TextBlock Text="Host-only controls: choose the extracted backend folder, verify the address players can reach, then start the server." FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">
@@ -66,6 +67,7 @@
                 <TextBox x:Name="HostFolderEntry" Classes="form-field" PlaceholderText="Select the folder containing Start-Backend.cmd" TextChanged="OnHostConfigurationChanged" />
                 <Button x:Name="BrowseBackendButton" Grid.Column="1" Classes="secondary" Content="Browse" VerticalAlignment="Bottom" Click="OnBrowseBackendFolder" />
               </Grid>
+              <TextBlock Text="Choose the extracted backend folder, not the ZIP file. It must contain Start-Backend.cmd; this app uses that script to launch the backend." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">
@@ -74,12 +76,13 @@
                 <TextBox x:Name="ZeroTierAddressEntry" Classes="form-field" PlaceholderText="Detecting…" TextChanged="OnHostConfigurationChanged" />
                 <Button x:Name="DetectAddressButton" Grid.Column="1" Classes="secondary" Content="Detect" VerticalAlignment="Bottom" Click="OnDetectAddress" />
               </Grid>
+              <TextBlock Text="This is the host address on ZeroTier. Other players must be able to reach it; do not use 127.0.0.1. Detect reads ipconfig, or you can type the address manually." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">
               <TextBlock Text="COMMAND" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
               <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="74" AcceptsReturn="False" TextWrapping="Wrap" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextChanged="OnBackendCommandChanged" />
-              <TextBlock Text="Edit -Players 2 to choose a match size from 2 to 10." Margin="2,4,0,0" FontSize="12" Foreground="#9FB0C8" />
+              <TextBlock Text="Review before starting: -PublicHost is the address advertised to players, -HttpUrl is the player URL, and -Players sets the match size from 2 to 10." Margin="2,4,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="0">
@@ -88,12 +91,14 @@
                 <TextBox x:Name="PlayerBackendUrlEntry" Classes="form-field" Height="44" IsReadOnly="True" PlaceholderText="Detect ZeroTier to generate the URL" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" />
                 <Button x:Name="CopyBackendUrlButton" Grid.Column="1" Classes="secondary" Content="Copy" IsEnabled="False" VerticalAlignment="Bottom" Click="OnCopyBackendUrlClicked" />
               </Grid>
+              <TextBlock Text="Copy this exact URL to every player. They paste it into the relay's Backend Server field. It must use the host's ZeroTier address, not localhost." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
               <Button x:Name="StartBackendButton" Classes="primary" Content="Start backend" Click="OnStartBackend" />
               <Button x:Name="StopBackendButton" Grid.Column="1" Classes="secondary" Content="Stop backend" IsEnabled="False" Click="OnStopBackend" />
             </Grid>
+            <TextBlock Text="Start backend opens a separate command window; keep it open while playing. Stop backend closes the backend process." FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             <TextBlock x:Name="BackendHostStatusText" Text="Backend stopped" FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
           </StackPanel>
         </Border>

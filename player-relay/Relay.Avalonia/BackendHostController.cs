@@ -7,10 +7,14 @@ namespace ReVerse.Relay.Desktop;
 
 public static partial class ZeroTierHost
 {
+    private static readonly TimeSpan DetectionTimeout = TimeSpan.FromSeconds(5);
+    private const string DetectionTimeoutMessage = "Could not detect the ZeroTier IP address within 5 seconds.";
+
     public static async Task<string?> DetectAddressAsync(CancellationToken cancellationToken = default)
     {
         if (!OperatingSystem.IsWindows())
             return null;
+
         var executable = Path.Combine(Environment.SystemDirectory, "ipconfig.exe");
         using var process = new Process
         {
@@ -23,16 +27,62 @@ public static partial class ZeroTierHost
                 RedirectStandardError = true
             }
         };
-        if (!process.Start())
-            throw new InvalidOperationException("Could not start ipconfig.");
-        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        var output = await outputTask;
-        var error = await errorTask;
-        if (process.ExitCode != 0)
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(error) ? "ipconfig failed." : error.Trim());
-        return ParseAddress(output);
+
+        using var timeoutCts = new CancellationTokenSource(DetectionTimeout);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+        Task<string>? outputTask = null;
+        Task<string>? errorTask = null;
+        var started = false;
+
+        try
+        {
+            if (!process.Start())
+                throw new InvalidOperationException("Could not start ipconfig.");
+            started = true;
+
+            outputTask = process.StandardOutput.ReadToEndAsync(linkedCts.Token);
+            errorTask = process.StandardError.ReadToEndAsync(linkedCts.Token);
+            await process.WaitForExitAsync(linkedCts.Token);
+
+            var output = await outputTask;
+            var error = await errorTask;
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(error) ? "ipconfig failed." : error.Trim());
+            return ParseAddress(output);
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException(DetectionTimeoutMessage);
+        }
+        finally
+        {
+            if (started)
+            {
+                try
+                {
+                    if (!process.HasExited)
+                        process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync();
+                }
+                catch (InvalidOperationException)
+                {
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                }
+            }
+
+            if (outputTask is not null || errorTask is not null)
+            {
+                try
+                {
+                    await Task.WhenAll(outputTask ?? Task.FromResult(string.Empty), errorTask ?? Task.FromResult(string.Empty));
+                }
+                catch (Exception) when (outputTask?.IsCanceled == true || errorTask?.IsCanceled == true)
+                {
+                }
+            }
+        }
     }
 
     public static string? ParseAddress(string ipconfigOutput)

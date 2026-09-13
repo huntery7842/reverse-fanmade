@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>ReVerse.Relay.Desktop</RootNamespace>
+    <ApplicationIcon>Assets\relay-icon.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
@@ -14,5 +15,6 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.2" />
     <ProjectReference Include="..\Relay.Core\Relay.Core.csproj" />
+    <AvaloniaResource Include="Assets\relay-icon.png" />
   </ItemGroup>
 </Project>

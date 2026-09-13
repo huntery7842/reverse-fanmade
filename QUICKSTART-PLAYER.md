@@ -57,7 +57,7 @@ the game's Steam launch options. The value is:
 This local address is intentional: the game talks to your own relay, while
 the relay talks to the host's backend URL.
 
-![Steam launch options example](image.png)
+![Steam launch options example](assets/image.png)
 
 ## 4. Test the connection
 

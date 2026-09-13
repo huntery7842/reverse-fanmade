@@ -279,10 +279,15 @@ public sealed partial class MainWindow : Window
         {
             var folder = HostFolderEntry.Text?.Trim() ?? "";
             var command = BackendCommandEntry.Text ?? "";
+            var backendUrl = PlayerBackendUrlEntry.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(backendUrl))
+                throw new InvalidOperationException("Detect a valid ZeroTier address before starting the backend.");
             settings.BackendFolder = folder;
+            settings.BackendAddress = backendUrl;
             settings.Save();
             backendHost.Start(folder, command);
-            BackendHostStatusText.Text = "Backend running in a separate command window";
+            BackendEntry.Text = backendUrl;
+            BackendHostStatusText.Text = "Backend running; local relay URL filled in automatically";
             BackendHostStatusText.Foreground = RunningBrush;
         }
         catch (Exception ex)
