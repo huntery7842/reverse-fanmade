@@ -3,7 +3,7 @@
 The host runs the shared backend. You run the Avalonia relay on your own
 computer and point it at the host through ZeroTier.
 
-Download the relay package from the [ReVerse v0.1.0 release](https://github.com/lannahirave/reverse-fanmade/releases/tag/v0.1.0).
+Download the relay package from the [ReVerse v0.2.0 release](https://github.com/lannahirave/reverse-fanmade/releases/tag/v0.2.0).
 
 ## 1. Join the host's ZeroTier network
 

@@ -7,7 +7,7 @@ copy of the game.
 DOWNLOADS
 
 Download the Windows or Linux/Steam Deck packages here:
-https://github.com/lannahirave/reverse-fanmade/releases/tag/v0.1.0
+https://github.com/lannahirave/reverse-fanmade/releases/tag/v0.2.0
 
 ReVerse-backend-win-x64.zip       Backend for a Windows host
 ReVerse-backend-linux-x64.zip     Backend for a Linux or Steam Deck host

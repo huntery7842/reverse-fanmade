@@ -26,7 +26,7 @@ backend for you.
 Packages are built by the repository's manually started GitHub Actions
 workflow. Download the Windows or Linux artifacts that match the machine:
 
-Download the current packages from the [ReVerse v0.1.0 release](https://github.com/lannahirave/reverse-fanmade/releases/tag/v0.1.0).
+Download the current packages from the [ReVerse v0.2.0 release](https://github.com/lannahirave/reverse-fanmade/releases/tag/v0.2.0).
 
 - Windows backend: `ReVerse-backend-win-x64.zip`
 - Linux backend: `ReVerse-backend-linux-x64.zip`

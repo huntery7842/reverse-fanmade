@@ -60,7 +60,7 @@ SDK.
 The manually triggered GitHub Actions workflow builds the four self-contained
 packages and attaches them to a tagged GitHub release:
 
-Download the current packages from the [ReVerse v0.1.0 release](https://github.com/lannahirave/reverse-fanmade/releases/tag/v0.1.0).
+Download the current packages from the [ReVerse v0.2.0 release](https://github.com/lannahirave/reverse-fanmade/releases/tag/v0.2.0).
 
 - `ReVerse-backend-win-x64.zip`
 - `ReVerse-backend-linux-x64.zip`
