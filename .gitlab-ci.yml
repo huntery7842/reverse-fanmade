@@ -64,10 +64,15 @@ build-windows:
           throw "The .NET 10 SDK must be installed on the Windows runner."
       }
 
-      $sdks = & dotnet --list-sdks
-      if ($sdks -notmatch '(?m)^10\.') {
+     $sdks = & dotnet --list-sdks
+
+      $dotnet10 = $sdks | Where-Object { $_ -match '^10\.' }
+
+      if (-not $dotnet10) {
           throw "The .NET 10 SDK must be installed on the Windows runner. Found: $($sdks -join '; ')"
       }
+
+      Write-Host "Found .NET 10 SDK: $dotnet10"
 
       Invoke-Step 'Build backend' { dotnet build backend/ReVerse.Capture.csproj --configuration Release }
       Invoke-Step 'Build backend provider tests' { dotnet build provider-tests/Provider.Tests.csproj --configuration Release }
