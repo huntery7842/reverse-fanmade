@@ -11,7 +11,7 @@ Install ZeroTier, join the network ID supplied by the host, and wait until the
 host authorizes your member. Confirm that your computer has a managed address
 and that you can reach the host's ZeroTier address.
 
-The host should give you a backend URL similar to:
+Ask the host for the **Player connection URL**. It should look similar to:
 
 ```text
 http://10.205.138.26:6080
@@ -38,16 +38,18 @@ The packages are self-contained and include the .NET runtime. No separate
 In the relay app enter:
 
 - **Username**: the account name you want to use.
-- **Secret key**: the shared password supplied by the host. The relay does not
-  save it.
-- **Backend server**: the host URL, for example
+- **Backend server**: the Player connection URL supplied by the host, for example
   `http://10.205.138.26:6080`.
 
-Click **Start relay** and leave the app running.
+The relay creates its internal connection value automatically; there is no
+secret-key field to complete. Click **Start relay** and leave the app running.
+The status beneath the button changes from **Signing in** to
+**Running — waiting for game**, then to **Running — connected to backend**
+after the game connects.
 
 ## 3. Set the game launch option
 
-Click **Copy** beside the launch option in the relay app, then paste it into
+Click **Copy** beside **Steam launch option** in the relay app, then paste it into
 the game's Steam launch options. The value is:
 
 ```text
@@ -55,7 +57,7 @@ the game's Steam launch options. The value is:
 ```
 
 This local address is intentional: the game talks to your own relay, while
-the relay talks to the host's backend URL.
+the relay talks to the host through the Player connection URL.
 
 ![Steam launch options example](assets/image.png)
 

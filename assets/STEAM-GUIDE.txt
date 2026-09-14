@@ -1,0 +1,116 @@
+REVERSE COMMUNITY MULTIPLAYER - QUICK START
+
+This is an unofficial community backend and local relay for Resident Evil
+Re:Verse. It does not include game files. You must own and use your own lawful
+copy of the game.
+
+DOWNLOADS
+
+Download the Windows or Linux/Steam Deck packages here:
+https://github.com/lannahirave/reverse-fanmade/releases/tag/v0.1.0
+
+ReVerse-backend-win-x64.zip       Backend for a Windows host
+ReVerse-backend-linux-x64.zip     Backend for a Linux or Steam Deck host
+ReVerseRelay-win-x64.zip          Relay for Windows players
+ReVerseRelay-linux-x64.zip        Relay for Linux or Steam Deck players
+
+The packages include the .NET runtime. Extract each ZIP completely before
+running it.
+
+HOW IT WORKS
+
+One player hosts the community backend. Every player, including the host, runs
+one local relay. The game connects to its local relay at 127.0.0.1:5080. Each
+relay connects to the host through the private ZeroTier network.
+
+HOST SETUP
+
+1. Install ZeroTier, create or join a private network, and authorize every
+   player in the ZeroTier controller.
+2. On the host firewall, allow TCP port 6080 and UDP port 5070 on the ZeroTier
+   interface.
+3. Extract both the backend and relay packages.
+4. Start Relay.Avalonia.exe on Windows or Relay.Avalonia on Linux/Steam Deck.
+5. Click HOST BACKEND in the upper-right corner to expand the relay window.
+6. Click BROWSE and choose the extracted backend folder. It must contain
+   ReVerse.Capture.exe on Windows or ReVerse.Capture on Linux.
+7. Click DETECT and verify that the displayed address is the host's managed
+   ZeroTier IPv4 address. It normally looks like 10.x.x.x.
+8. Set PLAYERS to the exact number of people joining, from 2 through 10.
+9. Click START BACKEND. Keep the backend window open while playing.
+
+Starting the backend automatically fills BACKEND SERVER in the host's Player
+relay section. The generated command is available under ADVANCED COMMAND when
+troubleshooting.
+
+Copy the PLAYER CONNECTION URL and give it to every remote player. It looks
+similar to:
+
+http://10.205.138.26:6080
+
+Use STOP BACKEND when the session is finished.
+
+PLAYER SETUP
+
+1. Install ZeroTier and join the network ID supplied by the host.
+2. Wait until the host authorizes your ZeroTier member.
+3. Extract and start the relay package for your system.
+4. Enter the username you want to use.
+5. Enter the PLAYER CONNECTION URL supplied by the host into BACKEND SERVER.
+6. Click START RELAY and leave the relay open while playing.
+
+There is no secret-key field. The relay creates its internal connection value
+automatically.
+
+The status below START RELAY changes from Signing in to Running - waiting for
+game. After the game connects, it changes to Running - connected to backend.
+
+Do not enter 127.0.0.1 or localhost into BACKEND SERVER. Remote players must
+use the host's ZeroTier address on port 6080.
+
+STEAM LAUNCH OPTION
+
+In Steam, open the game's Properties window. Under General, paste this complete
+value into Launch Options:
+
+/Rebe/HjmUriStr:http://127.0.0.1:5080
+
+You can copy it from STEAM LAUNCH OPTION in the relay app. This address is
+intentionally local: each game talks to the relay on the same computer. Do not
+replace 127.0.0.1 with the host's ZeroTier address.
+
+PLAYING
+
+1. The host starts the backend.
+2. Every player starts their relay.
+3. Every player launches the game with the Steam launch option above.
+4. Everyone searches for a match at approximately the same time.
+
+The backend PLAYERS value must match the intended group size. If the host
+changes it or restarts the backend, restart every relay and game before
+searching again.
+
+TROUBLESHOOTING
+
+If a player cannot connect, confirm that:
+
+- The player is authorized in the host's ZeroTier network.
+- The backend is still running on the host.
+- Every player uses the same PLAYER CONNECTION URL.
+- Every game uses /Rebe/HjmUriStr:http://127.0.0.1:5080.
+- The host firewall allows TCP 6080 and UDP 5070.
+- The backend PLAYERS value matches the group size.
+
+If the app says the backend executable was not found, choose the extracted
+backend folder rather than the ZIP file or relay folder.
+
+Detailed instructions are available in SETUP.md:
+https://github.com/lannahirave/reverse-fanmade
+
+LEGAL NOTICE
+
+This is an unofficial, experimental community project provided without
+warranty. Resident Evil, Biohazard, Re:Verse, related names, and all game
+intellectual property belong to CAPCOM CO., LTD. and/or their respective rights
+holders. This project is independent and is not affiliated with, endorsed by,
+or approved by CAPCOM or Valve. Use it at your own risk.
