@@ -64,7 +64,7 @@ build-windows:
           throw "The .NET 10 SDK must be installed on the Windows runner."
       }
 
-     $sdks = & dotnet --list-sdks
+      $sdks = & dotnet --list-sdks
 
       $dotnet10 = $sdks | Where-Object { $_ -match '^10\.' }
 
