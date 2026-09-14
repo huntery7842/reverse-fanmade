@@ -1,0 +1,174 @@
+# Build and publish pipeline for GitLab. Produces the same four packages as
+# .github/workflows/build-publish.yml and attaches them to a tagged release.
+#
+# Run from CI/CD > Pipelines > Run pipeline with:
+#   RELEASE_TAG   required, tag to create or update on the Releases page
+#   RELEASE_NAME  optional, display name for a new release (default "ReVerse packages")
+#   PRERELEASE    optional, "true" marks the notes as a pre-release
+#
+# Runner requirements:
+#   - a Windows runner tagged "windows" with the .NET 10 SDK installed and the
+#     PowerShell shell (the default for Windows runners)
+#   - a Linux Docker runner for the packaging and release jobs
+#
+# Set RELEASE_CLI_IMAGE as a project variable to a mirror of
+# registry.gitlab.com/gitlab-org/cli:latest if the release runner cannot pull it.
+# The release job authenticates with the job token. If the project defines
+# GITLAB_TOKEN, GITLAB_ACCESS_TOKEN, or OAUTH_TOKEN, they take precedence and
+# must have the api scope.
+
+stages:
+  - build
+  - release
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
+    - when: never
+
+validate-inputs:
+  stage: .pre
+  image: alpine:3.21
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - |
+      if [ -z "${RELEASE_TAG:-}" ]; then
+        echo "RELEASE_TAG must be set when starting this pipeline." >&2
+        exit 1
+      fi
+      echo "Release tag: ${RELEASE_TAG}"
+
+build-windows:
+  stage: build
+  tags:
+    - windows
+  timeout: 2 hours
+  script:
+    - |
+      $ErrorActionPreference = 'Stop'
+
+      function Invoke-Step {
+          param(
+              [Parameter(Mandatory = $true)][string]$Label,
+              [Parameter(Mandatory = $true)][scriptblock]$Action
+          )
+
+          & $Action
+          if ($LASTEXITCODE -ne 0) {
+              throw "$Label failed with exit code $LASTEXITCODE"
+          }
+      }
+
+      if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+          throw "The .NET 10 SDK must be installed on the Windows runner."
+      }
+
+      $sdks = & dotnet --list-sdks
+      if ($sdks -notmatch '(?m)^10\.') {
+          throw "The .NET 10 SDK must be installed on the Windows runner. Found: $($sdks -join '; ')"
+      }
+
+      Invoke-Step 'Build backend' { dotnet build backend/ReVerse.Capture.csproj --configuration Release }
+      Invoke-Step 'Build backend provider tests' { dotnet build provider-tests/Provider.Tests.csproj --configuration Release }
+      Invoke-Step 'Build signaling tests' { dotnet build signaling-tests/Signaling.Tests.csproj --configuration Release }
+      Invoke-Step 'Build DTLS tests' { dotnet build dtls-tests/Dtls.Tests.csproj --configuration Release }
+      Invoke-Step 'Build relay tests' { dotnet build player-relay/Relay.Tests/Relay.Tests.csproj --configuration Release }
+      Invoke-Step 'Build desktop relay' { dotnet build player-relay/Relay.Avalonia/Relay.Avalonia.csproj --configuration Release }
+      Invoke-Step 'Build desktop relay checks' { dotnet build player-relay/Relay.Avalonia.Checks/Relay.Avalonia.Checks.csproj --configuration Release }
+      Invoke-Step 'Run provider tests' { dotnet run --project provider-tests/Provider.Tests.csproj --configuration Release --no-build }
+      Invoke-Step 'Run signaling tests' { dotnet run --project signaling-tests/Signaling.Tests.csproj --configuration Release --no-build }
+      Invoke-Step 'Run desktop relay checks' { dotnet run --project player-relay/Relay.Avalonia.Checks/Relay.Avalonia.Checks.csproj --configuration Release --no-build }
+      Invoke-Step 'Publish backend' { & ./Publish-Backend-Windows.ps1 }
+      Invoke-Step 'Publish Windows relay' { & ./Publish-Relay-Windows.ps1 }
+      Invoke-Step 'Package backend' { Compress-Archive -Path artifacts/backend/* -DestinationPath artifacts/ReVerse-backend-win-x64.zip -Force }
+      Invoke-Step 'Package Windows relay' { Compress-Archive -Path artifacts/relay/* -DestinationPath artifacts/ReVerseRelay-win-x64.zip -Force }
+  artifacts:
+    name: ReVerse-windows-x64-$CI_COMMIT_SHORT_SHA
+    paths:
+      - artifacts/ReVerse-backend-win-x64.zip
+      - artifacts/ReVerseRelay-win-x64.zip
+    expire_in: 30 days
+
+publish-linux:
+  stage: build
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  timeout: 1 hour
+  before_script:
+    - apt-get update
+    - apt-get install --yes --no-install-recommends zip
+  script:
+    - |
+      set -euo pipefail
+
+      rm -rf artifacts/backend
+      dotnet publish backend/ReVerse.Capture.csproj --disable-build-servers --configuration Release --runtime linux-x64 --self-contained true -p:UseSharedCompilation=false -p:NuGetAudit=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false --output artifacts/backend
+      find artifacts/backend -maxdepth 1 -type f -name '*.pdb' -delete
+      mapfile -t backend_files < <(find artifacts/backend -maxdepth 1 -type f -print)
+      mapfile -t backend_directories < <(find artifacts/backend -mindepth 1 -maxdepth 1 -type d -print)
+      if [[ "${#backend_files[@]}" -ne 1 || "${backend_files[0]}" != "artifacts/backend/ReVerse.Capture" || "${#backend_directories[@]}" -ne 0 ]]; then
+        printf 'Expected one published file named ReVerse.Capture, found:\n%s\n' "${backend_files[*]}" >&2
+        exit 1
+      fi
+      chmod +x artifacts/backend/ReVerse.Capture
+      (cd artifacts/backend && zip -r ../ReVerse-backend-linux-x64.zip .)
+    - |
+      set -euo pipefail
+
+      rm -rf artifacts/relay
+      dotnet publish player-relay/Relay.Avalonia/Relay.Avalonia.csproj --configuration Release --runtime linux-x64 --self-contained true -p:NuGetAudit=false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false --output artifacts/relay
+      find artifacts/relay -maxdepth 1 -type f -name '*.pdb' -delete
+      mapfile -t relay_files < <(find artifacts/relay -maxdepth 1 -type f -print)
+      if [[ "${#relay_files[@]}" -ne 1 || "${relay_files[0]}" != "artifacts/relay/Relay.Avalonia" ]]; then
+        printf 'Expected one published file named Relay.Avalonia, found:\n%s\n' "${relay_files[*]}" >&2
+        exit 1
+      fi
+      chmod +x artifacts/relay/Relay.Avalonia
+      (cd artifacts/relay && zip -r ../ReVerseRelay-linux-x64.zip .)
+  artifacts:
+    name: ReVerse-linux-x64-$CI_COMMIT_SHORT_SHA
+    paths:
+      - artifacts/ReVerse-backend-linux-x64.zip
+      - artifacts/ReVerseRelay-linux-x64.zip
+    expire_in: 30 days
+
+publish-release:
+  stage: release
+  image:
+    name: $RELEASE_CLI_IMAGE
+  variables:
+    RELEASE_CLI_IMAGE: registry.gitlab.com/gitlab-org/cli:latest
+    GLAB_ENABLE_CI_AUTOLOGIN: "true"
+  needs:
+    - build-windows
+    - publish-linux
+  timeout: 30 minutes
+  script:
+    - |
+      set -eu
+
+      if [ -z "${RELEASE_TAG:-}" ]; then
+        echo "RELEASE_TAG must be set when starting this pipeline." >&2
+        exit 1
+      fi
+
+      release_name="${RELEASE_NAME:-ReVerse packages}"
+      prerelease="${PRERELEASE:-false}"
+
+      notes=$(printf 'Automated package build for %s.' "$RELEASE_TAG")
+      if [ "$prerelease" = "true" ]; then
+        notes=$(printf '%s\n\nPre-release build.' "$notes")
+      fi
+
+      set -- artifacts/*.zip
+      if [ "$#" -ne 4 ] || [ ! -f "$1" ]; then
+        echo "Expected four package ZIPs, found: $*" >&2
+        exit 1
+      fi
+
+      glab release create "$RELEASE_TAG" "$@" \
+        --name "$release_name" \
+        --notes "$notes" \
+        --use-package-registry
+
+      echo "Release URL: ${CI_PROJECT_URL}/-/releases/${RELEASE_TAG}"
