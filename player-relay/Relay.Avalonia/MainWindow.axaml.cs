@@ -12,28 +12,58 @@ namespace ReVerse.Relay.Desktop;
 public sealed partial class MainWindow : Window
 {
     private const string LaunchOptions = "/Rebe/HjmUriStr:http://127.0.0.1:5080";
+    private const double CompactWidth = 560;
+    private const double ExpandedWidth = 1120;
     private static bool SupportsBackendHosting => OperatingSystem.IsWindows() || OperatingSystem.IsLinux();
-    private static readonly IBrush StoppedBrush = new SolidColorBrush(Color.Parse("#9FB0C8"));
-    private static readonly IBrush WorkingBrush = new SolidColorBrush(Color.Parse("#F6C85F"));
-    private static readonly IBrush RunningBrush = new SolidColorBrush(Color.Parse("#68D391"));
-    private static readonly IBrush ErrorBrush = new SolidColorBrush(Color.Parse("#FC8181"));
+    private static readonly IBrush StoppedBrush = new SolidColorBrush(Color.Parse("#5E5751"));
+    private static readonly IBrush WorkingBrush = new SolidColorBrush(Color.Parse("#C98F43"));
+    private static readonly IBrush RunningBrush = new SolidColorBrush(Color.Parse("#94A978"));
+    private static readonly IBrush ErrorBrush = new SolidColorBrush(Color.Parse("#C7212B"));
     private readonly BackendHostController backendHost = new();
     private RelaySettings settings = new();
     private RelayService? service;
     private string? detectedZeroTierAddress;
     private bool busy;
+    private bool hostExpanded;
+    private bool addressDetectionStarted;
 
     public MainWindow()
     {
         InitializeComponent();
+        SecretEntry.Text = CreateSessionSecret();
         PlayersEntry.Value = 2;
         Closed += (_, _) => StopForShutdown();
         LoadSettings();
-        BackendHostPanel.IsVisible = SupportsBackendHosting;
+        HostToggleButton.IsVisible = SupportsBackendHosting;
+        BackendHostPanel.IsVisible = false;
         if (SupportsBackendHosting)
-        {
             backendHost.RunningChanged += OnBackendRunningChanged;
-            Opened += async (_, _) => await DetectZeroTierAddressAsync();
+    }
+
+    private static string CreateSessionSecret()
+    {
+        var seed = unchecked((int)DateTime.UtcNow.Ticks);
+        return new Random(seed).Next(1, 10_000_001).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private async void OnHostToggleClicked(object? sender, RoutedEventArgs e)
+    {
+        if (!SupportsBackendHosting)
+            return;
+
+        hostExpanded = !hostExpanded;
+        BackendHostPanel.IsVisible = hostExpanded;
+        ContentGrid.ColumnDefinitions[1].Width = hostExpanded
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(0);
+        MinWidth = hostExpanded ? 1000 : 500;
+        Width = hostExpanded ? ExpandedWidth : CompactWidth;
+        HostToggleButton.Content = hostExpanded ? "‹  RELAY ONLY" : "HOST BACKEND  ›";
+
+        if (hostExpanded && !addressDetectionStarted)
+        {
+            addressDetectionStarted = true;
+            await DetectZeroTierAddressAsync();
         }
     }
 
@@ -98,7 +128,7 @@ public sealed partial class MainWindow : Window
                     SetStatus(message, StatusBrush(message));
             });
             await current.StartAsync(settings);
-            ToggleButton.Content = "Stop relay";
+            ToggleButton.Content = "STOP RELAY";
         }
         catch (Exception ex)
         {
@@ -121,7 +151,7 @@ public sealed partial class MainWindow : Window
         if (old is not null)
             await old.DisposeAsync();
         SetInputsEnabled(true);
-        ToggleButton.Content = "Start relay";
+        ToggleButton.Content = "START RELAY";
         SetStatus("Stopped", StoppedBrush);
     }
 
@@ -166,9 +196,9 @@ public sealed partial class MainWindow : Window
         if (clipboard is null)
             return;
         await clipboard.SetTextAsync(LaunchOptions);
-        CopyButton.Content = "Copied";
+        CopyButton.Content = "COPIED";
         await Task.Delay(1200);
-        CopyButton.Content = "Copy";
+        CopyButton.Content = "COPY";
     }
 
     private void OnHostConfigurationChanged(object? sender, TextChangedEventArgs e)
@@ -253,6 +283,7 @@ public sealed partial class MainWindow : Window
     {
         var folder = HostFolderEntry.Text?.Trim() ?? "";
         var address = ZeroTierAddressEntry.Text?.Trim() ?? "";
+        UpdateBackendFolderStatus(folder);
         try
         {
             if (folder.Length == 0 || address.Length == 0)
@@ -280,6 +311,27 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void UpdateBackendFolderStatus(string folder)
+    {
+        if (folder.Length == 0)
+        {
+            BackendFolderStatusText.Text = "";
+            BackendFolderStatusText.IsVisible = false;
+            return;
+        }
+
+        try
+        {
+            BackendFolderStatusText.IsVisible = !File.Exists(ZeroTierHost.GetBackendEntryPath(folder));
+        }
+        catch (Exception) when (folder.Length > 0)
+        {
+            BackendFolderStatusText.IsVisible = true;
+        }
+
+        BackendFolderStatusText.Text = $"{ZeroTierHost.BackendEntryName} was not found in this folder.";
+    }
+
     private async void OnCopyBackendUrlClicked(object? sender, RoutedEventArgs e)
     {
         var clipboard = GetTopLevel(this)?.Clipboard;
@@ -287,9 +339,9 @@ public sealed partial class MainWindow : Window
         if (clipboard is null || string.IsNullOrWhiteSpace(url))
             return;
         await clipboard.SetTextAsync(url);
-        CopyBackendUrlButton.Content = "Copied";
+        CopyBackendUrlButton.Content = "COPIED";
         await Task.Delay(1200);
-        CopyBackendUrlButton.Content = "Copy";
+        CopyBackendUrlButton.Content = "COPY";
     }
 
     private void OnStartBackend(object? sender, RoutedEventArgs e)

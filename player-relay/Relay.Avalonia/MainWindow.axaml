@@ -3,130 +3,183 @@
         x:Class="ReVerse.Relay.Desktop.MainWindow"
         Title="ReVerse Relay"
         Icon="/Assets/relay-icon.png"
-        Width="620"
-        Height="900"
-        MinWidth="460"
-        MinHeight="650"
+        Width="560"
+        Height="700"
+        MinWidth="500"
+        MinHeight="620"
         WindowStartupLocation="CenterScreen">
-  <Grid>
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-      <StackPanel Margin="32,28,32,32" Spacing="22" MaxWidth="600">
-        <Grid ColumnDefinitions="52,*" ColumnSpacing="14">
-          <Border Width="52" Height="52" CornerRadius="16" Background="#4FD1C5">
-            <TextBlock Text="R" Foreground="#071016" FontSize="26" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+  <Grid RowDefinitions="74,*">
+    <Border Grid.Row="0" Background="#100E0D" BorderBrush="#39322D" BorderThickness="0,0,0,1">
+      <Grid Margin="24,0" ColumnDefinitions="Auto,*,Auto">
+        <Grid VerticalAlignment="Center" ColumnDefinitions="34,Auto" ColumnSpacing="14">
+          <Border Width="29" Height="29" BorderBrush="#C7212B" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Center">
+            <Border.RenderTransform>
+              <RotateTransform Angle="45" />
+            </Border.RenderTransform>
+            <TextBlock Text="+" Foreground="#C7212B" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <TextBlock.RenderTransform>
+                <RotateTransform Angle="-45" />
+              </TextBlock.RenderTransform>
+            </TextBlock>
           </Border>
-          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-            <TextBlock Text="ReVerse Relay" FontSize="25" FontWeight="SemiBold" />
-            <TextBlock Text="Private relay for your community backend" FontSize="13" Foreground="#9FB0C8" />
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+            <TextBlock FontFamily="Impact,DejaVu Sans" FontSize="23">
+              <TextBlock.Inlines>
+                <Run Text="RE" />
+                <Run Text="VERSE" Foreground="#C7212B" />
+                <Run Text=" RELAY" />
+              </TextBlock.Inlines>
+            </TextBlock>
+            <TextBlock Text="COMMUNITY CONNECTION UTILITY" Classes="label" Foreground="#5E5751" />
           </StackPanel>
         </Grid>
 
-        <Border Background="#111C2E" BorderBrush="#293750" BorderThickness="1" CornerRadius="18" Padding="22">
-          <StackPanel Spacing="16">
-            <StackPanel Spacing="0">
-              <TextBlock Text="USERNAME" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-              <TextBox x:Name="UsernameEntry" Classes="form-field" PlaceholderText="Choose a display name" MaxLength="64" />
-            </StackPanel>
+        <Button x:Name="HostToggleButton"
+                Grid.Column="2"
+                Classes="secondary"
+                Height="34"
+                Content="HOST BACKEND  ›"
+                ToolTip.Tip="Expand the window to show backend hosting controls."
+                Click="OnHostToggleClicked" />
+      </Grid>
+    </Border>
 
-            <StackPanel Spacing="0">
-              <TextBlock Text="SECRET KEY" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-              <TextBox x:Name="SecretEntry" Classes="form-field" PlaceholderText="Enter your shared secret" PasswordChar="●" MaxLength="1024" />
-              <TextBlock Text="The secret is used for sign-in and is never saved." Margin="2,7,0,0" FontSize="12" Foreground="#9FB0C8" />
+    <Grid x:Name="ContentGrid" Grid.Row="1" ColumnDefinitions="*,0">
+      <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="28,25,28,28" Spacing="0">
+          <Grid ColumnDefinitions="*" Margin="0,0,0,22">
+            <StackPanel Spacing="5">
+              <TextBlock Text="Player relay" FontFamily="Georgia,DejaVu Serif" FontSize="20" />
+              <TextBlock Text="Connect this computer to the host." Classes="helper" />
             </StackPanel>
+          </Grid>
 
-            <StackPanel Spacing="0">
-              <TextBlock Text="BACKEND SERVER" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-              <TextBox x:Name="BackendEntry" Classes="form-field" PlaceholderText="https://server.example.com" KeyDown="OnBackendKeyDown" />
-            </StackPanel>
-
-            <Button x:Name="ToggleButton" Classes="primary" Content="Start relay" Margin="0,6,0,0" Click="OnToggleClicked" />
-            <TextBlock x:Name="ErrorText" IsVisible="False" Foreground="#FC8181" FontSize="12" TextWrapping="Wrap" />
+          <StackPanel Spacing="0">
+            <TextBlock Text="USERNAME" Classes="label" />
+            <TextBox x:Name="UsernameEntry" Classes="form-field" PlaceholderText="Enter a player name" MaxLength="64" />
           </StackPanel>
-        </Border>
+          <TextBox x:Name="SecretEntry" IsVisible="False" />
 
-        <StackPanel Spacing="8">
-          <TextBlock Text="LAUNCH OPTIONS" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-          <Grid ColumnDefinitions="*,78" ColumnSpacing="8">
-            <Border Background="#17243A" BorderBrush="#293750" BorderThickness="1" CornerRadius="12" Padding="14,11">
-              <TextBlock Text="/Rebe/HjmUriStr:http://127.0.0.1:5080" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextTrimming="CharacterEllipsis" />
-            </Border>
-            <Button x:Name="CopyButton" Grid.Column="1" Classes="secondary" Content="Copy" Click="OnCopyClicked" />
-          </Grid>
-          <TextBlock Text="Add this value to the application launch options, then start the relay before opening it." FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
-        </StackPanel>
-
-        <Border Background="#111C2E" BorderBrush="#293750" BorderThickness="1" CornerRadius="16" Padding="18">
-          <Grid ColumnDefinitions="12,*" ColumnSpacing="12">
-            <Border x:Name="StatusDot" Width="12" Height="12" CornerRadius="6" Background="#9FB0C8" VerticalAlignment="Center" />
-            <StackPanel Grid.Column="1" Spacing="1">
-              <TextBlock Text="SERVICE STATUS" FontSize="10" FontWeight="SemiBold" LetterSpacing="1" Foreground="#9FB0C8" />
-              <TextBlock x:Name="StatusText" Text="Stopped" FontSize="14" FontWeight="SemiBold" />
+          <StackPanel Margin="0,18,0,0" Spacing="0">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="BACKEND SERVER" Classes="label" VerticalAlignment="Center" />
+              <Border Classes="help" ToolTip.Tip="This address is provided by the host. Ask them for the Player connection URL. Do not enter localhost or 127.0.0.1 here.">
+                <TextBlock Text="?" Classes="help-glyph" />
+              </Border>
             </StackPanel>
-          </Grid>
-        </Border>
+            <TextBox x:Name="BackendEntry" Classes="form-field" PlaceholderText="http://10.x.x.x:6080" KeyDown="OnBackendKeyDown" />
+          </StackPanel>
 
-        <Border x:Name="BackendHostPanel" Background="#111C2E" BorderBrush="#293750" BorderThickness="1" CornerRadius="18" Padding="22">
-          <StackPanel Spacing="16">
-            <StackPanel Spacing="2">
-              <TextBlock Text="HOST BACKEND" FontSize="16" FontWeight="SemiBold" />
-              <TextBlock Text="Host-only controls: choose the extracted backend folder, verify the address players can reach, then start the server." FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
-            </StackPanel>
-
+          <Border Margin="0,22,0,0" BorderBrush="#39322D" BorderThickness="0,1,0,0" Padding="0,20,0,0">
             <StackPanel Spacing="0">
-              <TextBlock Text="BACKEND FOLDER" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-              <Grid ColumnDefinitions="*,88" ColumnSpacing="8">
-                <TextBox x:Name="HostFolderEntry" Classes="form-field" PlaceholderText="Select the extracted backend folder" TextChanged="OnHostConfigurationChanged" />
-                <Button x:Name="BrowseBackendButton" Grid.Column="1" Classes="secondary" Content="Browse" VerticalAlignment="Bottom" Click="OnBrowseBackendFolder" />
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="STEAM LAUNCH OPTION" Classes="label" VerticalAlignment="Center" />
+                <Border Classes="help" ToolTip.Tip="Paste this into the game's Steam launch options. The local address is intentional: the game talks to this relay first.">
+                  <TextBlock Text="?" Classes="help-glyph" />
+                </Border>
+              </StackPanel>
+              <Grid ColumnDefinitions="*,70">
+                <TextBox Classes="form-field" Text="/Rebe/HjmUriStr:http://127.0.0.1:5080" IsReadOnly="True" />
+                <Button x:Name="CopyButton" Grid.Column="1" Classes="compact" Margin="0,7,0,0" Content="COPY" ToolTip.Tip="Copy the Steam launch option." Click="OnCopyClicked" />
               </Grid>
-              <TextBlock Text="Choose the extracted backend folder, not the ZIP file. Windows needs ReVerse.Capture.exe; Linux and Steam Deck need ReVerse.Capture. The app makes it executable when possible." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
             </StackPanel>
+          </Border>
 
-            <StackPanel Spacing="0">
-              <TextBlock Text="ZEROTIER IPV4 ADDRESS" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-              <Grid ColumnDefinitions="*,88" ColumnSpacing="8">
-                <TextBox x:Name="ZeroTierAddressEntry" Classes="form-field" PlaceholderText="Detecting…" TextChanged="OnHostConfigurationChanged" />
-                <Button x:Name="DetectAddressButton" Grid.Column="1" Classes="secondary" Content="Detect" VerticalAlignment="Bottom" Click="OnDetectAddress" />
-              </Grid>
-              <TextBlock x:Name="ZeroTierStatusText" IsVisible="False" Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
-              <TextBlock Text="This is the host address on ZeroTier. Other players must be able to reach it; do not use 127.0.0.1. Detect checks ipconfig on Windows and ZeroTier network interfaces on Linux." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
-            </StackPanel>
-
-            <StackPanel Spacing="0">
-              <TextBlock Text="PLAYERS" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-              <NumericUpDown x:Name="PlayersEntry" Classes="form-field" Minimum="2" Maximum="10" Increment="1" FormatString="0" ValueChanged="OnPlayerCountChanged" />
-              <TextBlock Text="Number of players required to start a match, from 2 to 10." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
-            </StackPanel>
-
-            <StackPanel Spacing="0">
-              <TextBlock Text="COMMAND" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-              <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="132" AcceptsReturn="False" TextWrapping="Wrap" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" TextChanged="OnBackendCommandChanged" />
-            </StackPanel>
-
-            <StackPanel Spacing="0">
-              <TextBlock Text="PLAYER BACKEND URL" FontSize="11" FontWeight="SemiBold" LetterSpacing="1.1" Foreground="#9FB0C8" />
-              <Grid ColumnDefinitions="*,78" ColumnSpacing="8">
-                <TextBox x:Name="PlayerBackendUrlEntry" Classes="form-field" Height="44" IsReadOnly="True" PlaceholderText="Detect ZeroTier to generate the URL" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="12" />
-                <Button x:Name="CopyBackendUrlButton" Grid.Column="1" Classes="secondary" Content="Copy" IsEnabled="False" VerticalAlignment="Bottom" Click="OnCopyBackendUrlClicked" />
-              </Grid>
-              <TextBlock Text="Copy this exact URL to every player. They paste it into the relay's Backend Server field. It must use the host's ZeroTier address, not localhost." Margin="2,7,0,0" FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
-            </StackPanel>
-
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-              <Button x:Name="StartBackendButton" Classes="primary" Content="Start backend" Click="OnStartBackend" />
-              <Button x:Name="StopBackendButton" Grid.Column="1" Classes="secondary" Content="Stop backend" IsEnabled="False" Click="OnStopBackend" />
+          <StackPanel Margin="0,24,0,0" Spacing="0">
+            <Button x:Name="ToggleButton" Classes="primary" Content="START RELAY" ToolTip.Tip="Sign in and start the local relay." Click="OnToggleClicked" />
+            <Grid Margin="1,10,1,0" ColumnDefinitions="*,Auto">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Border Width="7" Height="7" x:Name="StatusDot" Background="#5E5751" VerticalAlignment="Center" />
+                <TextBlock x:Name="StatusText" Text="Stopped" FontFamily="Consolas,DejaVu Sans Mono" FontSize="9" Foreground="#8B8278" />
+              </StackPanel>
+              <TextBlock Grid.Column="1" Text="PORTS 5080 / 5081" Classes="label" Foreground="#5E5751" />
             </Grid>
-            <TextBlock Text="Start backend launches the process (and opens a separate command window on Windows). Keep this app open while playing; backend logs are written in the backend folder." FontSize="11" Foreground="#9FB0C8" TextWrapping="Wrap" />
-            <TextBlock x:Name="BackendHostStatusText" Text="Backend stopped" FontSize="12" Foreground="#9FB0C8" TextWrapping="Wrap" />
           </StackPanel>
-        </Border>
+          <TextBlock x:Name="ErrorText" IsVisible="False" Margin="0,10,0,0" Foreground="#E05A62" FontFamily="Consolas,DejaVu Sans Mono" FontSize="10" TextWrapping="Wrap" />
+        </StackPanel>
+      </ScrollViewer>
 
-      </StackPanel>
-    </ScrollViewer>
+      <Border x:Name="BackendHostPanel" Grid.Column="1" IsVisible="False" BorderBrush="#39322D" BorderThickness="1,0,0,0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="28,25,28,28" Spacing="0">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,22">
+              <StackPanel Spacing="5">
+                <TextBlock Text="Backend host" FontFamily="Georgia,DejaVu Serif" FontSize="20" />
+                <TextBlock Text="Run the shared server for your group." Classes="helper" />
+              </StackPanel>
+            </Grid>
 
-    <Border x:Name="BusyOverlay" IsVisible="False" Background="#990B1220">
-      <StackPanel Width="220" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
-        <ProgressBar IsIndeterminate="True" Height="4" Foreground="#4FD1C5" />
-        <TextBlock Text="Please wait…" HorizontalAlignment="Center" Foreground="#9FB0C8" />
+            <StackPanel Spacing="0">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="BACKEND FOLDER" Classes="label" VerticalAlignment="Center" />
+                <Border Classes="help" ToolTip.Tip="Select the extracted backend folder containing ReVerse.Capture.exe on Windows or ReVerse.Capture on Linux.">
+                  <TextBlock Text="?" Classes="help-glyph" />
+                </Border>
+              </StackPanel>
+              <Grid ColumnDefinitions="*,82">
+                <TextBox x:Name="HostFolderEntry" Classes="form-field" PlaceholderText="Select the extracted backend folder" TextChanged="OnHostConfigurationChanged" />
+                <Button x:Name="BrowseBackendButton" Grid.Column="1" Classes="compact" Margin="0,7,0,0" Content="BROWSE" ToolTip.Tip="Choose the extracted backend folder." Click="OnBrowseBackendFolder" />
+              </Grid>
+              <TextBlock x:Name="BackendFolderStatusText" Classes="helper" IsVisible="False" Margin="1,7,0,0" Foreground="#C7212B" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Grid Margin="0,16,0,0" ColumnDefinitions="*,118" ColumnSpacing="14">
+              <StackPanel Spacing="0">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="ZEROTIER ADDRESS" Classes="label" VerticalAlignment="Center" />
+                  <Border Classes="help" ToolTip.Tip="Use this host computer's managed ZeroTier IPv4 address. Detect can find it from an active ZeroTier adapter.">
+                    <TextBlock Text="?" Classes="help-glyph" />
+                  </Border>
+                </StackPanel>
+                <Grid ColumnDefinitions="*,76">
+                  <TextBox x:Name="ZeroTierAddressEntry" Classes="form-field" PlaceholderText="10.x.x.x" TextChanged="OnHostConfigurationChanged" />
+                  <Button x:Name="DetectAddressButton" Grid.Column="1" Classes="compact" Margin="0,7,0,0" Content="DETECT" ToolTip.Tip="Detect the active ZeroTier IPv4 address." Click="OnDetectAddress" />
+                </Grid>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="0">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="PLAYERS" Classes="label" VerticalAlignment="Center" />
+                  <Border Classes="help" ToolTip.Tip="The exact number of players required before matchmaking starts, from 2 to 10.">
+                    <TextBlock Text="?" Classes="help-glyph" />
+                  </Border>
+                </StackPanel>
+                <NumericUpDown x:Name="PlayersEntry" Classes="form-field" Minimum="2" Maximum="10" Increment="1" FormatString="0" ValueChanged="OnPlayerCountChanged" />
+              </StackPanel>
+            </Grid>
+            <TextBlock x:Name="ZeroTierStatusText" IsVisible="False" Margin="1,7,0,0" FontFamily="Consolas,DejaVu Sans Mono" FontSize="9" Foreground="#5E5751" TextWrapping="Wrap" />
+
+            <Border Margin="0,22,0,0" BorderBrush="#39322D" BorderThickness="0,1,0,0" Padding="0,20,0,0">
+              <StackPanel Spacing="0">
+                <TextBlock Text="PLAYER CONNECTION URL" Classes="label" />
+                <Grid ColumnDefinitions="*,70">
+                  <TextBox x:Name="PlayerBackendUrlEntry" Classes="form-field" IsReadOnly="True" PlaceholderText="Detect ZeroTier to generate the connection URL" />
+                  <Button x:Name="CopyBackendUrlButton" Grid.Column="1" Classes="compact" Margin="0,7,0,0" Content="COPY" IsEnabled="False" ToolTip.Tip="Copy the Player connection URL to share with players." Click="OnCopyBackendUrlClicked" />
+                </Grid>
+                <TextBlock Text="Give this Player connection URL to every player. Starting the backend also fills the Backend server field in your relay section automatically." Classes="helper" Margin="1,7,0,0" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Expander Margin="0,17,0,0" Header="ADVANCED COMMAND" FontFamily="Consolas,DejaVu Sans Mono" FontSize="9" Foreground="#8B8278">
+              <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="94" AcceptsReturn="False" TextWrapping="Wrap" FontSize="10" TextChanged="OnBackendCommandChanged" />
+            </Expander>
+
+            <Grid Margin="0,24,0,0" ColumnDefinitions="*,86,112" ColumnSpacing="8">
+              <Button x:Name="StartBackendButton" Classes="primary" Content="START BACKEND" ToolTip.Tip="Launch the backend with this configuration." Click="OnStartBackend" />
+              <Button x:Name="StopBackendButton" Grid.Column="1" Classes="secondary" Height="48" Content="STOP" IsEnabled="False" ToolTip.Tip="Stop only the hosted backend process." Click="OnStopBackend" />
+              <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4">
+                <TextBlock x:Name="BackendHostStatusText" Text="Backend stopped" FontFamily="Consolas,DejaVu Sans Mono" FontSize="9" Foreground="#8B8278" TextWrapping="Wrap" />
+                <TextBlock Text="TCP 6080 / UDP 5070" Classes="label" Foreground="#5E5751" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+
+    <Border x:Name="BusyOverlay" Grid.RowSpan="2" IsVisible="False" Background="#D9090807">
+      <StackPanel Width="210" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+        <ProgressBar IsIndeterminate="True" Height="3" Foreground="#C7212B" />
+        <TextBlock Text="PLEASE WAIT" HorizontalAlignment="Center" Classes="label" />
       </StackPanel>
     </Border>
   </Grid>
