@@ -163,14 +163,16 @@
               <TextBox x:Name="BackendCommandEntry" Classes="form-field" Height="94" AcceptsReturn="False" TextWrapping="Wrap" FontSize="10" TextChanged="OnBackendCommandChanged" />
             </Expander>
 
-            <Grid Margin="0,24,0,0" ColumnDefinitions="*,86,112" ColumnSpacing="8">
-              <Button x:Name="StartBackendButton" Classes="primary" Content="START BACKEND" ToolTip.Tip="Launch the backend with this configuration." Click="OnStartBackend" />
-              <Button x:Name="StopBackendButton" Grid.Column="1" Classes="secondary" Height="48" Content="STOP" IsEnabled="False" ToolTip.Tip="Stop only the hosted backend process." Click="OnStopBackend" />
-              <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4">
+            <StackPanel Margin="0,24,0,0" Spacing="0">
+              <Grid ColumnDefinitions="*,86" ColumnSpacing="8">
+                <Button x:Name="StartBackendButton" Classes="primary" Content="START BACKEND" ToolTip.Tip="Launch the backend with this configuration." Click="OnStartBackend" />
+                <Button x:Name="StopBackendButton" Grid.Column="1" Classes="primary" Height="48" Content="STOP" IsEnabled="False" ToolTip.Tip="Stop only the hosted backend process." Click="OnStopBackend" />
+              </Grid>
+              <Grid Margin="1,10,1,0" ColumnDefinitions="*,Auto">
                 <TextBlock x:Name="BackendHostStatusText" Text="Backend stopped" FontFamily="Consolas,DejaVu Sans Mono" FontSize="9" Foreground="#8B8278" TextWrapping="Wrap" />
-                <TextBlock Text="TCP 6080 / UDP 5070" Classes="label" Foreground="#5E5751" />
-              </StackPanel>
-            </Grid>
+                <TextBlock Grid.Column="1" Text="TCP 6080 / UDP 5070" Classes="label" Foreground="#5E5751" />
+              </Grid>
+            </StackPanel>
           </StackPanel>
         </ScrollViewer>
       </Border>
