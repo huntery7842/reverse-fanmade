@@ -20,17 +20,30 @@ public sealed partial class MainWindow : Window
     private static readonly IBrush RunningBrush = new SolidColorBrush(Color.Parse("#94A978"));
     private static readonly IBrush ErrorBrush = new SolidColorBrush(Color.Parse("#C7212B"));
     private readonly BackendHostController backendHost = new();
+    private readonly ILocalizationService localization = new TranslationService();
     private RelaySettings settings = new();
     private RelayService? service;
     private string? detectedZeroTierAddress;
+    private Exception? currentError;
+    private Exception? zeroTierError;
+    private Exception? backendStatusError;
+    private RelayStatus relayStatus = RelayStatus.Stopped;
+    private ZeroTierStatus zeroTierStatus;
+    private BackendStatus backendStatus;
     private bool busy;
     private bool hostExpanded;
     private bool addressDetectionStarted;
+    private bool applyingLanguage;
+    private bool launchOptionsCopied;
+    private bool backendUrlCopied;
 
     public MainWindow()
     {
         InitializeComponent();
+        LanguageSelector.ItemsSource = localization.AvailableLanguages;
+        localization.LanguageChanged += OnLanguageChanged;
         SecretEntry.Text = CreateSessionSecret();
+        LaunchOptionsEntry.Text = LaunchOptions;
         PlayersEntry.Value = 2;
         Closed += (_, _) => StopForShutdown();
         LoadSettings();
@@ -38,6 +51,7 @@ public sealed partial class MainWindow : Window
         BackendHostPanel.IsVisible = false;
         if (SupportsBackendHosting)
             backendHost.RunningChanged += OnBackendRunningChanged;
+        ApplyLanguage();
     }
 
     private static string CreateSessionSecret()
@@ -45,6 +59,98 @@ public sealed partial class MainWindow : Window
         var seed = unchecked((int)DateTime.UtcNow.Ticks);
         return new Random(seed).Next(1, 10_000_001).ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        ApplyLanguage();
+    }
+
+    private void OnLanguageSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (applyingLanguage || LanguageSelector.SelectedItem is not ITranslation language)
+            return;
+        if (!localization.SetLanguage(language.Code))
+            return;
+
+        settings.LanguageCode = localization.Current.Code;
+        try
+        {
+            settings.Save();
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception);
+        }
+    }
+
+    private void ApplyLanguage()
+    {
+        var text = localization.Current;
+        applyingLanguage = true;
+        LanguageSelector.SelectedItem = text;
+        applyingLanguage = false;
+
+        Title = text.WindowTitle;
+        BrandPrefixRun.Text = text.BrandPrefix;
+        BrandAccentRun.Text = text.BrandAccent;
+        BrandSuffixRun.Text = text.BrandSuffix;
+        TaglineText.Text = text.Tagline;
+        ToolTip.SetTip(LanguageSelector, text.LanguageSelectorTooltip);
+        HostToggleButton.Content = hostExpanded ? text.RelayOnlyButton : text.HostBackendButton;
+        ToolTip.SetTip(HostToggleButton, hostExpanded ? text.RelayOnlyTooltip : text.HostBackendTooltip);
+
+        PlayerRelayTitleText.Text = text.PlayerRelayTitle;
+        PlayerRelayDescriptionText.Text = text.PlayerRelayDescription;
+        UsernameLabelText.Text = text.UsernameLabel;
+        UsernameEntry.PlaceholderText = text.UsernamePlaceholder;
+        BackendServerLabelText.Text = text.BackendServerLabel;
+        BackendEntry.PlaceholderText = text.BackendServerPlaceholder;
+        ToolTip.SetTip(BackendServerHelp, text.BackendServerTooltip);
+        SteamLaunchOptionLabelText.Text = text.SteamLaunchOptionLabel;
+        ToolTip.SetTip(SteamLaunchOptionHelp, text.SteamLaunchOptionTooltip);
+        ToolTip.SetTip(CopyButton, text.CopyLaunchOptionTooltip);
+        CopyButton.Content = launchOptionsCopied ? text.CopiedButton : text.CopyButton;
+        ToggleButton.Content = service is null ? text.StartRelayButton : text.StopRelayButton;
+        ToolTip.SetTip(ToggleButton, service is null ? text.StartRelayTooltip : text.StopRelayTooltip);
+        RelayPortsText.Text = text.RelayPorts;
+        PleaseWaitText.Text = text.PleaseWait;
+
+        BackendHostTitleText.Text = text.BackendHostTitle;
+        BackendHostDescriptionText.Text = text.BackendHostDescription;
+        BackendFolderLabelText.Text = text.BackendFolderLabel;
+        HostFolderEntry.PlaceholderText = text.BackendFolderPlaceholder;
+        ToolTip.SetTip(BackendFolderHelp, text.BackendFolderTooltip);
+        BrowseBackendButton.Content = text.BrowseButton;
+        ToolTip.SetTip(BrowseBackendButton, text.BrowseBackendTooltip);
+        ZeroTierAddressLabelText.Text = text.ZeroTierAddressLabel;
+        ZeroTierAddressEntry.PlaceholderText = text.ZeroTierAddressPlaceholder;
+        ToolTip.SetTip(ZeroTierAddressHelp, text.ZeroTierAddressTooltip);
+        DetectAddressButton.Content = text.DetectButton;
+        ToolTip.SetTip(DetectAddressButton, text.DetectAddressTooltip);
+        PlayersLabelText.Text = text.PlayersLabel;
+        ToolTip.SetTip(PlayersHelp, text.PlayersTooltip);
+        PlayerConnectionUrlLabelText.Text = text.PlayerConnectionUrlLabel;
+        PlayerBackendUrlEntry.PlaceholderText = text.PlayerConnectionUrlPlaceholder;
+        CopyBackendUrlButton.Content = backendUrlCopied ? text.CopiedButton : text.CopyButton;
+        ToolTip.SetTip(CopyBackendUrlButton, text.CopyPlayerUrlTooltip);
+        PlayerConnectionUrlDescriptionText.Text = text.PlayerConnectionUrlDescription;
+        AdvancedCommandExpander.Header = text.AdvancedCommandHeader;
+        StartBackendButton.Content = text.StartBackendButton;
+        ToolTip.SetTip(StartBackendButton, text.StartBackendTooltip);
+        StopBackendButton.Content = text.StopBackendButton;
+        ToolTip.SetTip(StopBackendButton, text.StopBackendTooltip);
+        BackendPortsText.Text = text.BackendPorts;
+
+        SetStatus(relayStatus);
+        RenderZeroTierStatus();
+        RenderBackendStatus();
+        UpdateBackendFolderStatus(HostFolderEntry.Text?.Trim() ?? "");
+
+        if (currentError is not null)
+            RenderError();
+    }
+
+    private static string GetBackendEntryName() => ZeroTierHost.BackendEntryName;
 
     private async void OnHostToggleClicked(object? sender, RoutedEventArgs e)
     {
@@ -58,7 +164,7 @@ public sealed partial class MainWindow : Window
             : new GridLength(0);
         MinWidth = hostExpanded ? 1000 : 500;
         Width = hostExpanded ? ExpandedWidth : CompactWidth;
-        HostToggleButton.Content = hostExpanded ? "‹  RELAY ONLY" : "HOST BACKEND  ›";
+        ApplyLanguage();
 
         if (hostExpanded && !addressDetectionStarted)
         {
@@ -72,16 +178,18 @@ public sealed partial class MainWindow : Window
         try
         {
             settings = RelaySettings.Load();
+            if (!localization.SetLanguage(settings.LanguageCode))
+                settings.LanguageCode = localization.Current.Code;
             UsernameEntry.Text = settings.Username;
             BackendEntry.Text = settings.BackendAddress;
             HostFolderEntry.Text = settings.BackendFolder;
             PlayersEntry.Value = Math.Clamp(settings.BackendPlayers, 2, 10);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            ShowError(ex.Message);
+            ShowError(exception);
             ToggleButton.IsEnabled = false;
-            SetStatus("Settings could not be loaded", ErrorBrush);
+            SetStatus(RelayStatus.SettingsLoadFailed);
         }
     }
 
@@ -115,26 +223,27 @@ public sealed partial class MainWindow : Window
             settings.Username = UsernameEntry.Text ?? "";
             settings.SecretKey = SecretEntry.Text ?? "";
             settings.BackendAddress = BackendEntry.Text ?? "";
+            settings.LanguageCode = localization.Current.Code;
             settings.Validate();
             settings.Save();
             SetInputsEnabled(false);
-            SetStatus("Signing in…", WorkingBrush);
+            SetStatus(RelayStatus.SigningIn);
 
             var current = new RelayService();
             service = current;
-            current.StatusChanged += message => Dispatcher.UIThread.Post(() =>
+            current.StatusChanged += status => Dispatcher.UIThread.Post(() =>
             {
                 if (ReferenceEquals(service, current))
-                    SetStatus(message, StatusBrush(message));
+                    SetStatus(status);
             });
             await current.StartAsync(settings);
-            ToggleButton.Content = "STOP RELAY";
+            ToggleButton.Content = localization.Current.StopRelayButton;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
             await StopAsync();
-            SetStatus("Could not start relay", ErrorBrush);
-            ShowError(ex.Message + " Check the server address and make sure ports 5080 and 5081 are free.");
+            SetStatus(RelayStatus.StartFailed);
+            ShowError(exception, appendRelayStartAdvice: true);
         }
         finally
         {
@@ -151,8 +260,8 @@ public sealed partial class MainWindow : Window
         if (old is not null)
             await old.DisposeAsync();
         SetInputsEnabled(true);
-        ToggleButton.Content = "START RELAY";
-        SetStatus("Stopped", StoppedBrush);
+        ToggleButton.Content = localization.Current.StartRelayButton;
+        SetStatus(RelayStatus.Stopped);
     }
 
     private void SetInputsEnabled(bool enabled)
@@ -162,30 +271,54 @@ public sealed partial class MainWindow : Window
         BackendEntry.IsEnabled = enabled;
     }
 
-    private void SetStatus(string message, IBrush brush)
+    private void SetStatus(RelayStatus status)
     {
-        StatusText.Text = message;
-        StatusDot.Background = brush;
+        relayStatus = status;
+        StatusText.Text = localization.Current.GetRelayStatusText(status);
+        StatusDot.Background = StatusBrush(status);
     }
 
-    private static IBrush StatusBrush(string message)
+    private static IBrush StatusBrush(RelayStatus status) => status switch
     {
-        if (message.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("expired", StringComparison.OrdinalIgnoreCase))
-            return ErrorBrush;
-        if (message.StartsWith("Running", StringComparison.OrdinalIgnoreCase))
-            return RunningBrush;
-        return WorkingBrush;
+        RelayStatus.BackendConnectionFailed or RelayStatus.SessionExpired or
+            RelayStatus.StartFailed or RelayStatus.SettingsLoadFailed => ErrorBrush,
+        RelayStatus.RunningWaitingForGame or RelayStatus.RunningConnectedToBackend => RunningBrush,
+        RelayStatus.Stopped => StoppedBrush,
+        _ => WorkingBrush
+    };
+
+    private void ShowError(Exception exception, bool appendRelayStartAdvice = false)
+    {
+        currentError = exception;
+        errorIncludesRelayStartAdvice = appendRelayStartAdvice;
+        RenderError();
     }
 
-    private void ShowError(string message)
+    private bool errorIncludesRelayStartAdvice;
+
+    private void RenderError()
     {
-        ErrorText.Text = message;
+        if (currentError is null)
+            return;
+        var message = GetErrorText(currentError);
+        ErrorText.Text = errorIncludesRelayStartAdvice
+            ? localization.Current.GetRelayStartErrorText(message)
+            : message;
         ErrorText.IsVisible = true;
     }
 
+    private string GetErrorText(Exception exception) => exception switch
+    {
+        RelayException relayException => localization.Current.GetRelayErrorText(relayException.Code, relayException.StatusCode),
+        DesktopArgumentOutOfRangeException desktopArgumentException => localization.Current.GetDesktopErrorText(desktopArgumentException.Code, null, null),
+        DesktopException desktopException => localization.Current.GetDesktopErrorText(desktopException.Code, desktopException.Detail, desktopException.EntryName),
+        _ => exception.Message
+    };
+
     private void HideError()
     {
+        currentError = null;
+        errorIncludesRelayStartAdvice = false;
         ErrorText.Text = "";
         ErrorText.IsVisible = false;
     }
@@ -196,16 +329,22 @@ public sealed partial class MainWindow : Window
         if (clipboard is null)
             return;
         await clipboard.SetTextAsync(LaunchOptions);
-        CopyButton.Content = "COPIED";
+        launchOptionsCopied = true;
+        CopyButton.Content = localization.Current.CopiedButton;
         await Task.Delay(1200);
-        CopyButton.Content = "COPY";
+        launchOptionsCopied = false;
+        CopyButton.Content = localization.Current.CopyButton;
     }
 
     private void OnHostConfigurationChanged(object? sender, TextChangedEventArgs e)
     {
         if (ReferenceEquals(sender, ZeroTierAddressEntry) &&
             !ZeroTierHost.IsDetectedAddress(ZeroTierAddressEntry.Text, detectedZeroTierAddress))
-            ZeroTierStatusText.IsVisible = false;
+        {
+            zeroTierStatus = ZeroTierStatus.None;
+            zeroTierError = null;
+            RenderZeroTierStatus();
+        }
         UpdateHostCommand();
     }
 
@@ -228,31 +367,56 @@ public sealed partial class MainWindow : Window
     {
         DetectAddressButton.IsEnabled = false;
         detectedZeroTierAddress = null;
-        ZeroTierStatusText.Text = "Detecting ZeroTier address…";
-        ZeroTierStatusText.Foreground = WorkingBrush;
-        ZeroTierStatusText.IsVisible = true;
+        zeroTierError = null;
+        zeroTierStatus = ZeroTierStatus.Detecting;
+        RenderZeroTierStatus();
         try
         {
             var address = await ZeroTierHost.DetectAddressAsync();
             if (address is null)
-                throw new InvalidOperationException("No active ZeroTier IPv4 address was found. Connect ZeroTier or enter the address manually.");
+                throw new DesktopException(DesktopErrorCode.NoZeroTierAddress);
             detectedZeroTierAddress = address;
             ZeroTierAddressEntry.Text = address;
-            ZeroTierStatusText.Text = "ZeroTier address detected";
-            ZeroTierStatusText.Foreground = RunningBrush;
-            ZeroTierStatusText.IsVisible = true;
+            zeroTierStatus = ZeroTierStatus.Detected;
+            RenderZeroTierStatus();
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
             detectedZeroTierAddress = null;
-            ZeroTierStatusText.Text = ex.Message;
-            ZeroTierStatusText.Foreground = ErrorBrush;
-            ZeroTierStatusText.IsVisible = true;
+            zeroTierError = exception;
+            zeroTierStatus = ZeroTierStatus.Error;
+            RenderZeroTierStatus();
         }
         finally
         {
             DetectAddressButton.IsEnabled = !backendHost.IsRunning;
             UpdateHostCommand();
+        }
+    }
+
+    private void RenderZeroTierStatus()
+    {
+        switch (zeroTierStatus)
+        {
+            case ZeroTierStatus.Detecting:
+                ZeroTierStatusText.Text = localization.Current.DetectingZeroTierStatus;
+                ZeroTierStatusText.Foreground = WorkingBrush;
+                ZeroTierStatusText.IsVisible = true;
+                break;
+            case ZeroTierStatus.Detected:
+                ZeroTierStatusText.Text = localization.Current.ZeroTierDetectedStatus;
+                ZeroTierStatusText.Foreground = RunningBrush;
+                ZeroTierStatusText.IsVisible = true;
+                break;
+            case ZeroTierStatus.Error when zeroTierError is not null:
+                ZeroTierStatusText.Text = GetErrorText(zeroTierError);
+                ZeroTierStatusText.Foreground = ErrorBrush;
+                ZeroTierStatusText.IsVisible = true;
+                break;
+            default:
+                ZeroTierStatusText.Text = "";
+                ZeroTierStatusText.IsVisible = false;
+                break;
         }
     }
 
@@ -262,7 +426,7 @@ public sealed partial class MainWindow : Window
         {
             var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
-                Title = "Select the backend folder",
+                Title = localization.Current.SelectBackendFolderDialogTitle,
                 AllowMultiple = false
             });
             if (folders.Count == 0)
@@ -272,10 +436,9 @@ public sealed partial class MainWindow : Window
             settings.Save();
             UpdateHostCommand();
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            BackendHostStatusText.Text = ex.Message;
-            BackendHostStatusText.Foreground = ErrorBrush;
+            SetBackendStatus(BackendStatus.Error, exception);
         }
     }
 
@@ -300,13 +463,12 @@ public sealed partial class MainWindow : Window
             CopyBackendUrlButton.IsEnabled = true;
             UpdateStartBackendAvailability();
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
             BackendCommandEntry.Text = "";
             PlayerBackendUrlEntry.Text = "";
             CopyBackendUrlButton.IsEnabled = false;
-            BackendHostStatusText.Text = ex.Message;
-            BackendHostStatusText.Foreground = ErrorBrush;
+            SetBackendStatus(BackendStatus.Error, exception);
             StartBackendButton.IsEnabled = false;
         }
     }
@@ -320,16 +482,20 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        var missing = true;
         try
         {
-            BackendFolderStatusText.IsVisible = !File.Exists(ZeroTierHost.GetBackendEntryPath(folder));
+            missing = !File.Exists(ZeroTierHost.GetBackendEntryPath(folder));
         }
         catch (Exception) when (folder.Length > 0)
         {
-            BackendFolderStatusText.IsVisible = true;
+            missing = true;
         }
 
-        BackendFolderStatusText.Text = $"{ZeroTierHost.BackendEntryName} was not found in this folder.";
+        BackendFolderStatusText.IsVisible = missing;
+        BackendFolderStatusText.Text = missing
+            ? localization.Current.GetBackendFolderMissingText(GetBackendEntryName())
+            : "";
     }
 
     private async void OnCopyBackendUrlClicked(object? sender, RoutedEventArgs e)
@@ -339,9 +505,11 @@ public sealed partial class MainWindow : Window
         if (clipboard is null || string.IsNullOrWhiteSpace(url))
             return;
         await clipboard.SetTextAsync(url);
-        CopyBackendUrlButton.Content = "COPIED";
+        backendUrlCopied = true;
+        CopyBackendUrlButton.Content = localization.Current.CopiedButton;
         await Task.Delay(1200);
-        CopyBackendUrlButton.Content = "COPY";
+        backendUrlCopied = false;
+        CopyBackendUrlButton.Content = localization.Current.CopyButton;
     }
 
     private void OnStartBackend(object? sender, RoutedEventArgs e)
@@ -352,40 +520,65 @@ public sealed partial class MainWindow : Window
             var command = BackendCommandEntry.Text ?? "";
             var backendUrl = PlayerBackendUrlEntry.Text?.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(backendUrl))
-                throw new InvalidOperationException("Detect a valid ZeroTier address before starting the backend.");
+                throw new DesktopException(DesktopErrorCode.BackendUrlRequired);
             settings.BackendFolder = folder;
             settings.BackendAddress = backendUrl;
             settings.BackendPlayers = decimal.ToInt32(PlayersEntry.Value ?? 2);
             settings.Save();
             backendHost.Start(folder, command);
             BackendEntry.Text = backendUrl;
-            BackendHostStatusText.Text = "Backend running; local relay URL filled in automatically";
-            BackendHostStatusText.Foreground = RunningBrush;
+            SetBackendStatus(BackendStatus.Running);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            BackendHostStatusText.Text = ex.Message;
-            BackendHostStatusText.Foreground = ErrorBrush;
+            SetBackendStatus(BackendStatus.Error, exception);
         }
     }
 
     private async void OnStopBackend(object? sender, RoutedEventArgs e)
     {
         StopBackendButton.IsEnabled = false;
-        BackendHostStatusText.Text = "Stopping backend…";
-        BackendHostStatusText.Foreground = WorkingBrush;
+        SetBackendStatus(BackendStatus.Stopping);
         try
         {
             await backendHost.StopAsync();
-            BackendHostStatusText.Text = "Backend stopped";
-            BackendHostStatusText.Foreground = StoppedBrush;
+            SetBackendStatus(BackendStatus.Stopped);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            BackendHostStatusText.Text = ex.Message;
-            BackendHostStatusText.Foreground = ErrorBrush;
+            SetBackendStatus(BackendStatus.Error, exception);
         }
         UpdateStartBackendAvailability();
+    }
+
+    private void SetBackendStatus(BackendStatus status, Exception? exception = null)
+    {
+        backendStatus = status;
+        backendStatusError = exception;
+        RenderBackendStatus();
+    }
+
+    private void RenderBackendStatus()
+    {
+        switch (backendStatus)
+        {
+            case BackendStatus.Running:
+                BackendHostStatusText.Text = localization.Current.BackendRunningStatus;
+                BackendHostStatusText.Foreground = RunningBrush;
+                break;
+            case BackendStatus.Stopping:
+                BackendHostStatusText.Text = localization.Current.BackendStoppingStatus;
+                BackendHostStatusText.Foreground = WorkingBrush;
+                break;
+            case BackendStatus.Error when backendStatusError is not null:
+                BackendHostStatusText.Text = GetErrorText(backendStatusError);
+                BackendHostStatusText.Foreground = ErrorBrush;
+                break;
+            default:
+                BackendHostStatusText.Text = localization.Current.BackendStoppedStatus;
+                BackendHostStatusText.Foreground = StoppedBrush;
+                break;
+        }
     }
 
     private void OnBackendRunningChanged(bool running)
@@ -404,8 +597,7 @@ public sealed partial class MainWindow : Window
         StopBackendButton.IsEnabled = running;
         if (!running)
         {
-            BackendHostStatusText.Text = "Backend stopped";
-            BackendHostStatusText.Foreground = StoppedBrush;
+            SetBackendStatus(BackendStatus.Stopped);
             UpdateStartBackendAvailability();
         }
     }
@@ -429,5 +621,21 @@ public sealed partial class MainWindow : Window
                 await old.DisposeAsync();
             await backendHost.DisposeAsync();
         }).GetAwaiter().GetResult();
+    }
+
+    private enum ZeroTierStatus
+    {
+        None,
+        Detecting,
+        Detected,
+        Error
+    }
+
+    private enum BackendStatus
+    {
+        Stopped,
+        Running,
+        Stopping,
+        Error
     }
 }

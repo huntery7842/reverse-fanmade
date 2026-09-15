@@ -10,7 +10,6 @@ namespace ReVerse.Relay.Desktop;
 public static partial class ZeroTierHost
 {
     private static readonly TimeSpan DetectionTimeout = TimeSpan.FromSeconds(5);
-    private const string DetectionTimeoutMessage = "Could not detect the ZeroTier IP address within 5 seconds.";
     public static string BackendEntryName => OperatingSystem.IsWindows() ? "ReVerse.Capture.exe" : "ReVerse.Capture";
 
     public static async Task<string?> DetectAddressAsync(CancellationToken cancellationToken = default)
@@ -45,7 +44,7 @@ public static partial class ZeroTierHost
         try
         {
             if (!process.Start())
-                throw new InvalidOperationException("Could not start ipconfig.");
+                throw new DesktopException(DesktopErrorCode.IpconfigCouldNotStart);
             started = true;
 
             outputTask = process.StandardOutput.ReadToEndAsync(linkedCts.Token);
@@ -55,12 +54,12 @@ public static partial class ZeroTierHost
             var output = await outputTask;
             var error = await errorTask;
             if (process.ExitCode != 0)
-                throw new InvalidOperationException(string.IsNullOrWhiteSpace(error) ? "ipconfig failed." : error.Trim());
+                throw new DesktopException(DesktopErrorCode.IpconfigFailed, detail: error.Trim());
             return ParseAddress(output);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
-            throw new TimeoutException(DetectionTimeoutMessage);
+            throw new DesktopException(DesktopErrorCode.DetectionTimedOut);
         }
         finally
         {
@@ -102,7 +101,7 @@ public static partial class ZeroTierHost
         }
         catch (TimeoutException)
         {
-            throw new TimeoutException(DetectionTimeoutMessage);
+            throw new DesktopException(DesktopErrorCode.DetectionTimedOut);
         }
     }
 
@@ -161,7 +160,7 @@ public static partial class ZeroTierHost
         var folder = Path.GetFullPath(backendFolder.Trim().Trim('"'));
         var ip = ValidateAddress(address);
         if (players is < 2 or > 10)
-            throw new ArgumentOutOfRangeException(nameof(players), "Player count must be between 2 and 10.");
+            throw new DesktopArgumentOutOfRangeException(DesktopErrorCode.InvalidPlayerCount, nameof(players));
         var settings = new[]
         {
             "Relay__Enabled=true",
@@ -204,7 +203,7 @@ public static partial class ZeroTierHost
     {
         var value = address.Trim();
         if (!IsUsableIpv4(value))
-            throw new ArgumentException("Enter a valid ZeroTier IPv4 address.");
+            throw new DesktopException(DesktopErrorCode.InvalidZeroTierAddress);
         return value;
     }
 
@@ -242,21 +241,21 @@ internal sealed class BackendHostController : IAsyncDisposable
         var folder = Path.GetFullPath(backendFolder.Trim().Trim('"'));
         var launcher = ZeroTierHost.GetBackendEntryPath(folder);
         if (!Directory.Exists(folder))
-            throw new DirectoryNotFoundException("The selected backend folder does not exist.");
+            throw new DesktopException(DesktopErrorCode.BackendFolderDoesNotExist);
         if (!File.Exists(launcher))
-            throw new FileNotFoundException($"{ZeroTierHost.BackendEntryName} was not found in the selected backend folder.", launcher);
+            throw new DesktopException(DesktopErrorCode.BackendExecutableMissing, entryName: ZeroTierHost.BackendEntryName);
         command = command.Trim();
         if (command.Length == 0)
-            throw new ArgumentException("Enter a backend command.");
+            throw new DesktopException(DesktopErrorCode.BackendCommandRequired);
         if (OperatingSystem.IsLinux())
             EnsureExecutable(launcher);
         lock (gate)
         {
             if (process is { HasExited: false })
-                throw new InvalidOperationException("The backend is already running.");
+                throw new DesktopException(DesktopErrorCode.BackendAlreadyRunning);
             process?.Dispose();
             process = Process.Start(CreateStartInfo(folder, command)) ??
-                throw new InvalidOperationException("The backend process could not be started.");
+                throw new DesktopException(DesktopErrorCode.BackendProcessCouldNotStart);
             process.EnableRaisingEvents = true;
             process.Exited += OnExited;
         }
@@ -306,11 +305,11 @@ internal sealed class BackendHostController : IAsyncDisposable
         }
         catch (IOException exception)
         {
-            throw new InvalidOperationException("ReVerse.Capture could not be made executable. Run chmod +x ReVerse.Capture in the backend folder.", exception);
+            throw new DesktopException(DesktopErrorCode.BackendExecutablePermission, innerException: exception);
         }
         catch (UnauthorizedAccessException exception)
         {
-            throw new InvalidOperationException("ReVerse.Capture could not be made executable. Run chmod +x ReVerse.Capture in the backend folder.", exception);
+            throw new DesktopException(DesktopErrorCode.BackendExecutablePermission, innerException: exception);
         }
     }
 

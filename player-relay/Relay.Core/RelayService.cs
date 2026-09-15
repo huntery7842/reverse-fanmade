@@ -28,28 +28,28 @@ public sealed class RelayService : IAsyncDisposable
     private readonly CancellationTokenSource stopping = new();
     private WebApplication? app;
     private X509Certificate2? certificate;
-    public event Action<string>? StatusChanged;
+    public event Action<RelayStatus>? StatusChanged;
 
     public async Task StartAsync(RelaySettings settings, int httpPort = 5080, int httpsPort = 5081,
         string? certificateDirectory = null)
     {
-        if (app is not null) throw new InvalidOperationException("Relay is already running.");
+        if (app is not null) throw new RelayException(RelayErrorCode.RelayAlreadyRunning);
         var upstream = settings.Validate();
         var addresses = await Dns.GetHostAddressesAsync(upstream.DnsSafeHost);
         if (addresses.Any(IPAddress.IsLoopback) && (upstream.Port == httpPort || upstream.Port == httpsPort))
-            throw new ArgumentException("The backend address points back to this relay. Use the shared server's address and port.");
-        StatusChanged?.Invoke("Signing in…");
+            throw new RelayException(RelayErrorCode.BackendPointsToRelay);
+        StatusChanged?.Invoke(RelayStatus.SigningIn);
         using var loginTimeout = CancellationTokenSource.CreateLinkedTokenSource(stopping.Token);
         loginTimeout.CancelAfter(TimeSpan.FromSeconds(30));
         using var login = await client.PostAsJsonAsync(new Uri(upstream, "/relay/account/login"),
             new { username = settings.Username, secretKey = settings.SecretKey }, loginTimeout.Token);
         if (!login.IsSuccessStatusCode)
-            throw new HttpRequestException($"Account sign-in failed (HTTP {(int)login.StatusCode}). Check that the backend supports relay accounts and has Relay__Enabled=true.");
+            throw new RelayException(RelayErrorCode.AccountSignInFailed, (int)login.StatusCode);
         var account = await login.Content.ReadFromJsonAsync<RelayAccount>(loginTimeout.Token)
-            ?? throw new HttpRequestException("Backend returned an empty account response.");
+            ?? throw new RelayException(RelayErrorCode.BackendEmptyAccountResponse);
         if (!Guid.TryParseExact(account.AccountId, "N", out _) || account.SessionToken is not { Length: 64 } ||
             !account.SessionToken.All(Uri.IsHexDigit) || string.IsNullOrEmpty(account.Username))
-            throw new HttpRequestException("Backend returned an invalid account response.");
+            throw new RelayException(RelayErrorCode.BackendInvalidAccountResponse);
         sessionToken = account.SessionToken;
         var playerId = account.AccountId;
         var name = Convert.ToBase64String(Encoding.UTF8.GetBytes(account.Username));
@@ -85,14 +85,14 @@ public sealed class RelayService : IAsyncDisposable
             catch (OperationCanceledException) when (linked.IsCancellationRequested) { context.Abort(); }
             catch (Exception ex) when (ex is HttpRequestException or WebSocketException or IOException or OperationCanceledException)
             {
-                StatusChanged?.Invoke("Running — backend connection failed");
+                StatusChanged?.Invoke(RelayStatus.BackendConnectionFailed);
                 if (context.Response.HasStarted) context.Abort();
                 else { context.Response.StatusCode = 502; await context.Response.WriteAsync("Backend connection failed."); }
             }
         });
         try { await app.StartAsync(); }
         catch { await app.DisposeAsync(); app = null; certificate.Dispose(); certificate = null; throw; }
-        StatusChanged?.Invoke("Running — waiting for game");
+        StatusChanged?.Invoke(RelayStatus.RunningWaitingForGame);
     }
 
     private static HashSet<string> Excluded(IEnumerable<string> connectionValues)
@@ -137,8 +137,8 @@ public sealed class RelayService : IAsyncDisposable
         if (!HttpMethods.IsHead(context.Request.Method) && (int)response.StatusCode is not (204 or 205 or 304))
             await response.Content.CopyToAsync(context.Response.Body, ct);
         StatusChanged?.Invoke(response.StatusCode == HttpStatusCode.Unauthorized
-            ? "Session expired — stop and start service"
-            : "Running — connected to backend");
+            ? RelayStatus.SessionExpired
+            : RelayStatus.RunningConnectedToBackend);
     }
 
     private async Task ForwardWebSocket(HttpContext context, Uri target, string playerId, string name, CancellationToken ct)
@@ -160,7 +160,7 @@ public sealed class RelayService : IAsyncDisposable
             await remote.ConnectAsync(wsTarget.Uri, connectTimeout.Token);
         }
         using var local = await context.WebSockets.AcceptWebSocketAsync(remote.SubProtocol);
-        StatusChanged?.Invoke("Running — connected to backend");
+        StatusChanged?.Invoke(RelayStatus.RunningConnectedToBackend);
         using var pumps = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var toRemote = Pump(local, remote, pumps.Token);
         var toLocal = Pump(remote, local, pumps.Token);

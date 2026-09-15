@@ -9,6 +9,7 @@ public sealed class RelaySettings
     public string BackendAddress { get; set; } = "";
     public string BackendFolder { get; set; } = "";
     public int BackendPlayers { get; set; } = 2;
+    public string LanguageCode { get; set; } = "en";
     [JsonIgnore]
     public string SecretKey { get; set; } = "";
 
@@ -17,13 +18,13 @@ public sealed class RelaySettings
         Username = Username.Trim();
         BackendAddress = BackendAddress.Trim().TrimEnd('/');
         if (Username.Length is < 1 or > 64 || Username.Any(char.IsControl))
-            throw new ArgumentException("Enter a username of 1–64 characters without control characters.");
+            throw new RelayException(RelayErrorCode.InvalidUsername);
         if (SecretKey.Length is < 1 or > 1024)
-            throw new ArgumentException("Enter a secret key of 1–1024 characters.");
+            throw new RelayException(RelayErrorCode.InvalidSecretKey);
         if (!Uri.TryCreate(BackendAddress, UriKind.Absolute, out var uri) ||
             uri.Scheme is not ("http" or "https") || uri.AbsolutePath != "/" ||
             uri.Query != "" || uri.Fragment != "" || uri.UserInfo != "")
-            throw new ArgumentException("Enter a backend URL such as https://server.example.com or http://192.168.1.10:5080, without a path.");
+            throw new RelayException(RelayErrorCode.InvalidBackendUrl);
         return uri;
     }
 
@@ -35,7 +36,7 @@ public sealed class RelaySettings
         var path = Path.Combine(DataDirectory, "settings.json");
         return File.Exists(path)
             ? JsonSerializer.Deserialize<RelaySettings>(File.ReadAllText(path))
-                ?? throw new InvalidDataException("Saved settings are empty.")
+                ?? throw new RelayException(RelayErrorCode.SavedSettingsEmpty)
             : new RelaySettings();
     }
 
