@@ -5,6 +5,10 @@ relay for Resident Evil Re:Verse. It is intended to let players connect their
 existing game installations to a community-hosted server and play together
 over a private ZeroTier network.
 
+⚠️ Disclaimer
+This software is an open-source project developed for the community and is not affiliated with any organization or institution.
+It is shared purely for educational purposes, software development testing, and to contribute to the growth of the open-source community.
+
 ## Keywords and topics
 
 Resident Evil Re:Verse community server, unofficial backend, self-hosted game
