@@ -11,7 +11,7 @@
   <Grid RowDefinitions="74,*">
     <Border Grid.Row="0" Background="#100E0D" BorderBrush="#39322D" BorderThickness="0,0,0,1">
       <Grid Margin="24,0" ColumnDefinitions="Auto,*,Auto">
-        <Grid VerticalAlignment="Center" ColumnDefinitions="34,Auto" ColumnSpacing="14">
+        <Grid VerticalAlignment="Center" ColumnDefinitions="34,Auto,Auto" ColumnSpacing="14">
           <Border Width="29" Height="29" BorderBrush="#C7212B" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Center">
             <Border.RenderTransform>
               <RotateTransform Angle="45" />
@@ -32,20 +32,17 @@
             </TextBlock>
             <TextBlock x:Name="TaglineText" Classes="label" Foreground="#5E5751" />
           </StackPanel>
+          <ComboBox x:Name="LanguageSelector"
+                    Grid.Column="2"
+                    Classes="language-selector"
+                    SelectionChanged="OnLanguageSelectionChanged">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding LanguageName}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
         </Grid>
-
-        <ComboBox x:Name="LanguageSelector"
-                  Grid.Column="1"
-                  HorizontalAlignment="Center"
-                  VerticalAlignment="Center"
-                  Classes="language-selector"
-                  SelectionChanged="OnLanguageSelectionChanged">
-          <ComboBox.ItemTemplate>
-            <DataTemplate>
-              <TextBlock Text="{Binding LanguageName}" />
-            </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
 
         <Button x:Name="HostToggleButton"
                 Grid.Column="2"
