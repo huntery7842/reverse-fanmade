@@ -15,6 +15,7 @@ internal static class ConversationTests
         Assert.Throws<WireFormatException>(() => conversation.Control(new WireSettings([new(0, 1), new(1, 1), new(2, 1)])), "settings before probe");
         Assert.Throws<WireFormatException>(() => conversation.Control(new WireControl(0x14, [1])), "request20 before reply19");
         Assert.Throws<WireFormatException>(() => conversation.Control(new WireControl(0x12, [1, 1])), "request18 before settings");
+        Assert.That(conversation.Control(new WireControl(1, [])).Count == 0, "no-op control produced a reply");
         Assert.That(conversation.Control(new WireControl(3, [])) is [WireControl { Type: 4, Values.Count: 0 }], "probe response");
         foreach (var entries in new WireSetting[][] { [], [new(0, 1), new(1, 1)], [new(0, 1), new(0, 1), new(2, 1)], [new(0, 1), new(1, 1), new(3, 1)] })
             Assert.Throws<WireFormatException>(() => conversation.Control(new WireSettings(entries)), "invalid setting keys");

@@ -15,12 +15,18 @@ def join_body(account, nonce=123):
             'useCrossPlay': False}
 
 
+def expected_profiles(account):
+    return [
+        {'encryptedUserId': account['id'], 'service': 'capcom', 'nickname': account['username']},
+        {'encryptedUserId': account['id'], 'service': 'steam', 'nickname': account['username']},
+    ]
+
+
 def validate_response(body, session, account):
     assert body.get('sessionId') == session, 'Join HTTP callback requires root sessionId'
     assert isinstance(body.get('players'), list) and body['players'], 'Join HTTP callback rejects empty/missing players'
-    assert body['players'][0]['serviceProfiles'] == [
-        {'encryptedUserId': account['id'], 'service': 'steam', 'nickname': account['username']}
-    ], 'serviceProfiles supplies the match display name'
+    assert body['players'][0]['serviceProfiles'] == expected_profiles(account), \
+        'serviceProfiles supplies both primary and platform display names'
     assert isinstance(body.get('serviceEncryptionKey'), str), 'Missing serviceEncryptionKey'
     assert isinstance(body.get('keyword'), str), 'Missing keyword'
 
@@ -31,9 +37,8 @@ def validate_member(frame, account, nonce):
     player = data['member']['players'][0]
     assert player['accountId'] == account['id']
     assert isinstance(player['platform'], str)
-    assert player['serviceProfiles'] == [
-        {'encryptedUserId': account['id'], 'service': 'steam', 'nickname': account['username']}
-    ], 'Member event supplies the match display name'
+    assert player['serviceProfiles'] == expected_profiles(account), \
+        'Member event supplies both primary and platform display names'
     assert player['joinState'] == 'JOINED'
     assert type(player['joinTimestamp']) is int
     assert json.loads(player['customData1']) == {'version': 1, 'nonce': nonce}

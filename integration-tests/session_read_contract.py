@@ -2,7 +2,7 @@
 import json
 from urllib.parse import urlencode
 from matchmaking_flow import Harness, ticket, event
-from game_join_contract import join_body
+from game_join_contract import expected_profiles, join_body
 
 FIELDS = ('sessionId,createdTimestamp,maxPlayers,maxSpectators,member(players),member(spectators),'
           'member(players(joinState)),member(spectators(joinState)),member(players(customData1)),'
@@ -54,8 +54,7 @@ def main():
             assert current['serviceEncryptionKey'] == reply['serviceEncryptionKey']
             members = {p['accountId']: p for p in current['member']['players']}
             assert members[who['id']]['customData1'] == join_body(who, nonce)['players'][0]['customData1']
-            assert members[who['id']]['serviceProfiles'] == [
-                {'encryptedUserId': who['id'], 'service': 'steam', 'nickname': who['username']}]
+            assert members[who['id']]['serviceProfiles'] == expected_profiles(who)
             if who is a:
                 assert members[b['id']]['joinState'] == 'RESERVED'
         assert current['gameSessionSequenceNo'] == 3 and current['signaling'] == 'NONE'

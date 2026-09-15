@@ -41,7 +41,7 @@ internal static class WireContentCodec
 {
     private static int ControlCount(byte type) => type switch
     {
-        3 or 4 or 5 => 0,
+        1 or 3 or 4 or 5 => 0,
         0x12 => 2,
         0x13 or 0x14 or 0x15 => 1,
         _ => throw new WireFormatException($"Unsupported content type 0x{type:x2}; its boundary is not recovered.")

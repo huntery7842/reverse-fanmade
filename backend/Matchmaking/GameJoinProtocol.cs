@@ -24,14 +24,15 @@ internal static class GameJoinProtocol
         };
     }
 
-    private static JsonArray Profiles(string account, string nickname) => new()
+    private static JsonArray Profiles(string account, string nickname)
     {
-        new JsonObject
+        var displayName = string.IsNullOrWhiteSpace(nickname) ? account : nickname;
+        return new()
         {
-            ["encryptedUserId"] = account, ["service"] = "steam",
-            ["nickname"] = string.IsNullOrWhiteSpace(nickname) ? account : nickname
-        }
-    };
+            new JsonObject { ["encryptedUserId"] = account, ["service"] = "capcom", ["nickname"] = displayName },
+            new JsonObject { ["encryptedUserId"] = account, ["service"] = "steam", ["nickname"] = displayName }
+        };
+    }
 
     internal static uint ReadNonce(string custom)
     {

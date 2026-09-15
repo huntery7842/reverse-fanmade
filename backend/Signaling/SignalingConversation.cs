@@ -31,6 +31,9 @@ public sealed class SignalingConversation(SignalingOptions options, SignalingDir
         if (content is not WireControl control) return [];
         switch (control.Type)
         {
+            case 1:
+                stage("no_op_received");
+                return [];
             case 3:
                 probed = true;
                 stage("probe_received");

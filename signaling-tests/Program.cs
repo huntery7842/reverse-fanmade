@@ -211,10 +211,11 @@ internal static class Tests
 
     public static void Controls()
     {
-        byte[] bytes = Raw("12010114010405132a153b160300025388010103020119");
+        byte[] bytes = Raw("0112010114010405132a153b160300025388010103020119");
         var contents = WirePacket.Parse(bytes).Contents;
-        Equal(7, contents.Count); Equal(2, ((WireControl)contents[0]).Values.Count);
-        Equal(42UL, ((WireControl)contents[4]).Values[0]);
+        Equal(8, contents.Count); Equal(0, ((WireControl)contents[0]).Values.Count);
+        Equal(2, ((WireControl)contents[1]).Values.Count);
+        Equal(42UL, ((WireControl)contents[5]).Values[0]);
         var settings = (WireSettings)contents[^1];
         Equal(5000UL, settings.Entries[0].Value); Equal(3UL, settings.Entries[1].Value); Equal(25UL, settings.Entries[2].Value);
         Bytes(bytes, WirePacket.Parse(bytes).Encode());
@@ -225,7 +226,7 @@ internal static class Tests
 
     public static void ControlFailures()
     {
-        foreach (string body in new[] { "01", "06", "10", "11", "17", "ff", "1201", "14", "13", "15", "13c000000100000000", "15c000000100000000", "1601", "16010000", "160100020001", "1601000240" })
+        foreach (string body in new[] { "06", "10", "11", "17", "ff", "1201", "14", "13", "15", "13c000000100000000", "15c000000100000000", "1601", "16010000", "160100020001", "1601000240" })
             Reject(() => WirePacket.Parse(Raw(body)));
         Reject(() => WirePacket.Parse(Raw("040504"), new WireLimits { MaxContentItems = 2 }));
         Reject(() => WirePacket.Parse(Raw("1602000100010101"), new WireLimits { MaxSettings = 1 }));
