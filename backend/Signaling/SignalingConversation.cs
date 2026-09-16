@@ -94,20 +94,22 @@ public sealed class SignalingConversation(SignalingOptions options, SignalingDir
             if (!accepted) throw new WireFormatException("Application credential rejected.");
             registered = true;
             stage("application_registered");
-            if (directory.Activate(peer.Session))
+            if (directory.Activate(peer.Session, connection))
             {
+                var current = directory.Current(peer.Session, peer.Account, connection)
+                    ?? throw new WireFormatException("Signaling membership is unavailable.");
                 var readiness = new WireWriter();
                 Text(readiness, peer.Session);
                 readiness.WriteByte(1);
-                readiness.WriteUInt16(checked((ushort)peer.Peers.Count));
-                foreach (var entry in peer.Peers)
+                readiness.WriteUInt16(checked((ushort)current.Peers.Count));
+                foreach (var entry in current.Peers)
                 {
                     Text(readiness, entry.Account);
                     readiness.WriteUInt16(entry.Number);
                     readiness.WriteByte(2);
                 }
-                foreach (var entry in peer.Peers)
-                    if (!directory.Queue(peer.Session, entry.Account, new(3, 7, 0x10, readiness.ToArray())))
+                foreach (var entry in current.Peers)
+                    if (!directory.Queue(peer.Session, entry.Account, new(3, 7, 0x10, readiness.ToArray()), connection))
                         throw new WireFormatException("Peer readiness delivery unavailable.");
                 stage("all_members_registered_readiness_sent_NOT_gameplay_verified");
             }
@@ -131,11 +133,14 @@ public sealed class SignalingConversation(SignalingOptions options, SignalingDir
 
     private void Forward(ReadOnlyMemory<byte> body, ref SignalingPayloadAudit audit)
     {
-        if (!directory.AllRegistered(peer.Session)) throw new WireFormatException("Peer set is not registered.");
+        if (!directory.IsActive(peer.Session) && !directory.AllRegistered(peer.Session, connection))
+            throw new WireFormatException("Peer set is not registered.");
+        var current = directory.Current(peer.Session, peer.Account, connection)
+            ?? throw new WireFormatException("Signaling membership is unavailable.");
         var input = new WireReader(body, ushort.MaxValue);
         var count = input.ReadUInt16();
         audit = audit with { DestinationCount = count };
-        if (count is 0 || count > peer.Peers.Count) throw new WireFormatException("Invalid destination count.");
+        if (count is 0 || count > current.Peers.Count) throw new WireFormatException("Invalid destination count.");
         var destinations = new HashSet<ushort>();
         for (var i = 0; i < count; i++)
             if (!destinations.Add(input.ReadUInt16())) throw new WireFormatException("Duplicate destination.");
@@ -164,18 +169,18 @@ public sealed class SignalingConversation(SignalingOptions options, SignalingDir
         audit = audit with { EnvelopeValid = true };
         if (options.PeerDiagnostics)
             audit = audit with { PeerPrimary = PeerPrimaryDiagnostics.Inspect(primary.Span, senderNonce, destinationNonce) };
-        if (senderNonce != peer.Nonce) throw new WireFormatException("Sender nonce does not match the authenticated membership.");
+        if (senderNonce != current.Nonce) throw new WireFormatException("Sender nonce does not match the authenticated membership.");
 
-        var targets = destinations.Select(number => peer.Peers.SingleOrDefault(p => p.Number == number)
+        var targets = destinations.Select(number => current.Peers.SingleOrDefault(p => p.Number == number)
             ?? throw new WireFormatException("Destination outside authenticated session.")).ToArray();
-        if (targets.Any(target => target.Account == peer.Account || target.Nonce != destinationNonce))
+        if (targets.Any(target => target.Account == current.Account || target.Nonce != destinationNonce))
             throw new WireFormatException("Destination nonce or route mismatch.");
         var output = new WireWriter(ushort.MaxValue);
         Text(output, peer.Session);
-        output.WriteUInt16(peer.Number);
+        output.WriteUInt16(current.Number);
         output.WriteBytes16(block.Span);
         foreach (var target in targets)
-            if (!directory.Queue(peer.Session, target.Account, new(4, 1, 0x10, output.ToArray(), 0x42)))
+            if (!directory.Queue(peer.Session, target.Account, new(4, 1, 0x10, output.ToArray(), 0x42), connection))
                 throw new WireFormatException("Destination disconnected or its queue is full.");
         audit = audit with { Outcome = "queued" };
         stage("peer_payload_forwarded");

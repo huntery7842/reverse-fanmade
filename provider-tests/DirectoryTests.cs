@@ -182,6 +182,45 @@ internal static class DirectoryTests
         AssertRevoked(room);
     }
 
+    internal static void MembershipExpansion()
+    {
+        using var room = new Room(members: [new("carol", 3), new("alice", 1)]);
+        room.Ready();
+        var oldAlice = room.Credentials["alice"];
+        var oldConnection = Room.Connection("alice");
+        SignalingMember[] expanded = [new("carol", 3), new("alice", 1), new("bob", 2)];
+        Assert.That(room.Directory.Replace(Room.Session, "carol", expanded, DateTimeOffset.UtcNow.AddMinutes(1)), "membership expansion");
+        var newCredentials = expanded.ToDictionary(member => member.Account,
+            member => Credential.From(Assert.NotNull(room.Directory.Descriptor(Room.Session, member.Account), "expanded descriptor")));
+        Assert.That(newCredentials["alice"] == oldAlice, "membership expansion rotated existing credentials");
+        Assert.That(room.Directory.LookupPsk(oldAlice.IdentityBytes) is not null
+            && room.Directory.IsAttached(Room.Session, "alice", oldConnection)
+            && !room.Directory.AllRegistered(Room.Session, oldConnection), "new member did not enter the active allocation");
+        Assert.That(room.Directory.Queue(Room.Session, "carol", new(4, 1, 0x10, [1]), oldConnection), "active traffic stopped during expansion");
+        Assert.That(room.Take("carol") is { Family: 4, Operation: 1, Qualifier: 0x10 }, "active delivery failed during expansion");
+
+        var connection = "expanded/bob";
+        var credential = newCredentials["bob"];
+        var snapshot = Assert.NotNull(room.Directory.Attach(credential.IdentityBytes, connection), "new member attachment");
+        var conversation = new SignalingConversation(room.Options, room.Directory, snapshot, connection, _ => { });
+        conversation.Control(new WireControl(3, []));
+        conversation.Control(new WireSettings([new(0, 5000), new(1, 3), new(2, 25)]));
+        conversation.Control(new WireControl(0x12, [1, 1]));
+        conversation.Control(new WireControl(0x14, [1]));
+        conversation.Application(1, 1, 1, Bytes.Sized(credential.SecretBytes));
+        Assert.That(room.Take("alice") is { Family: 3, Operation: 7, Qualifier: 0x10 }
+            && room.Take("carol") is { Family: 3, Operation: 7, Qualifier: 0x10 }, "existing peers missed expanded readiness");
+        Assert.That(room.Directory.Dequeue(Room.Session, "bob", connection) is { Family: 1, Operation: 1, Qualifier: 2 }
+            && room.Directory.Dequeue(Room.Session, "bob", connection) is { Family: 3, Operation: 7, Qualifier: 0x10 },
+            "new peer missed registration or expanded readiness");
+
+        var current = Assert.NotNull(room.Directory.Current(Room.Session, "alice", oldConnection), "expanded snapshot");
+        Assert.That(room.Directory.LookupPsk(oldAlice.IdentityBytes) is not null
+            && room.Directory.IsAttached(Room.Session, "alice", oldConnection)
+            && room.Directory.IsActive(Room.Session) && room.Directory.AllRegistered(Room.Session, oldConnection)
+            && current.Peers.Count == 3, "expanded topology did not preserve the active allocation");
+    }
+
     internal static async Task Deadline()
     {
         var directory = new SignalingDirectory(Room.NewOptions());

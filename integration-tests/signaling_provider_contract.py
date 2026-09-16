@@ -17,6 +17,7 @@ import threading
 
 from matchmaking_flow import Harness, ROOT, cancel, event, offer, ticket
 from game_join_contract import join_body
+from private_match_contract import create_body
 
 SIGNALING = '/v1/gameSession/signaling'
 PROBE = Path(os.environ.get('REVERSE_TEST_PROVIDER_DLL', str(ROOT / 'provider-tests/bin/Debug/net10.0/Provider.Tests.dll')))
@@ -256,5 +257,61 @@ def main():
     print('Artifacts:', h.folder)
 
 
+def private_membership_changes():
+    udp_port = free_udp_port()
+    h = ProviderHarness(extra_env={
+        'Signaling__Enabled': 'true', 'Signaling__BindAddress': '127.0.0.1',
+        'Signaling__Port': str(udp_port), 'Signaling__PublicHost': '127.0.0.1',
+        'Signaling__PublicPort': str(udp_port), 'Signaling__ExperimentalReplies': 'true',
+        'Signaling__Reply19': '1', 'Signaling__Reply21': '1',
+        'Signaling__RegistrationFieldB': '', 'Signaling__RegistrationFieldBIsPeerNumber': 'true',
+        'Signaling__MaxConnections': '8', 'Signaling__HandshakeTimeoutSeconds': '2',
+        'Signaling__IdleTimeoutSeconds': '30', 'Signaling__MaxSessionSeconds': '60',
+        'Logging__EventLog__LogLevel__Default': 'None',
+        'Matchmaking__JoinLifetimeSeconds': '30',
+    })
+    try:
+        host, guest, third = [h.account() for _ in range(3)]
+        wh, wg, wt = [h.connect(account) for account in (host, guest, third)]
+        info = h.request('POST', '/v1/gameSession', host, create_body(host, capacity=4))['gameSessions'][0]
+        event(wh, 'players:created')
+        sid, keyword = info['sessionId'], info['keyword']
+
+        def headers(account):
+            return {'X-Be-Session-Id': sid, 'X-Auth-Session-Key': account['gameKey']}
+
+        h.request('PATCH', SIGNALING, host, {'signalingTimeoutSeconds': 30}, headers=headers(host))
+        h.request('POST', '/v1/gameSession/member/players', guest, join_body(guest),
+                  headers={**headers(guest), 'X-Be-Session-Keyword': keyword})
+        event(wh, 'players:created'); event(wg, 'players:created')
+        event(wh, 'signaling:created'); event(wg, 'signaling:created')
+        first = {account['id']: h.request('GET', SIGNALING, account, headers=headers(account))
+                 for account in (host, guest)}
+
+        h.request('POST', '/v1/gameSession/member/players', third, join_body(third),
+                  headers={**headers(third), 'X-Be-Session-Keyword': keyword})
+        for ws in (wh, wg, wt):
+            event(ws, 'players:created')
+        event(wh, 'operateSequenceNo'); event(wg, 'operateSequenceNo'); event(wt, 'signaling:created')
+        second = {account['id']: h.request('GET', SIGNALING, account, headers=headers(account))
+                  for account in (host, guest, third)}
+        assert first[host['id']] == second[host['id']]
+        assert first[guest['id']] == second[guest['id']]
+
+        h.request('DELETE', '/v1/gameSession/members', third, headers=headers(third))
+        event(wh, 'players:deleted'); event(wg, 'players:deleted')
+        state = h.request('GET', '/v1/gameSession', host,
+                          headers={'X-Be-Session-Ids': sid, 'X-Auth-Session-Key': host['gameKey']})['gameSessions'][0]
+        assert {player['accountId'] for player in state['member']['players']} == {host['id'], guest['id']}
+        h.request('GET', SIGNALING, third, headers=headers(third), expected=404)
+        for account in (host, guest):
+            assert h.request('GET', SIGNALING, account, headers=headers(account)) == second[account['id']]
+        h.request('DELETE', '/v1/gameSession', host, headers=headers(host))
+        print('PASS private signaling membership expands, contracts and preserves the room')
+    finally:
+        h.close()
+
+
 if __name__ == '__main__':
     main()
+    private_membership_changes()

@@ -27,6 +27,7 @@ public sealed class SignalingDirectory(SignalingOptions options)
         public DateTimeOffset HardDeadline { get; set; }
         public bool Active { get; set; }
         public bool Failed { get; set; }
+        public bool TopologyPending { get; set; }
         public List<Peer> Peers { get; } = [];
     }
 
@@ -53,19 +54,43 @@ public sealed class SignalingDirectory(SignalingOptions options)
         {
             if (!listening) return false;
             if (sessions.ContainsKey(session)) return true;
-            if (members.Count is < 2 or > 10 || members.Select(m => m.Account).Distinct().Count() != members.Count
-                || !members.Any(m => m.Account == representative)) throw new InvalidDataException("Invalid signaling membership.");
+            ValidateMembers(representative, members);
             if (identities.Count + members.Count > options.MaxConnections) return false;
-            var allocation = new Allocation(session, representative, deadline)
-            { HardDeadline = DateTimeOffset.UtcNow.AddSeconds(options.MaxSessionSeconds) };
-            ushort number = 1;
-            foreach (var member in members.OrderBy(m => m.Account, StringComparer.Ordinal))
+            sessions.Add(session, Create(session, representative, members, deadline));
+            return true;
+        }
+    }
+
+    public bool Replace(string session, string representative, IReadOnlyList<SignalingMember> members, DateTimeOffset deadline)
+    {
+        lock (gate)
+        {
+            if (!listening) return false;
+            ValidateMembers(representative, members);
+            if (!sessions.TryGetValue(session, out var allocation) || !Valid(allocation)) return false;
+            if (allocation.Representative != representative) throw new InvalidDataException("Invalid signaling representative.");
+            var requested = members.ToDictionary(member => member.Account, StringComparer.Ordinal);
+            foreach (var peer in allocation.Peers)
+                if (requested.TryGetValue(peer.Member.Account, out var member) && member.Nonce != peer.Member.Nonce)
+                    throw new InvalidDataException("Signaling member nonce changed.");
+            var removed = allocation.Peers.Where(peer => !requested.ContainsKey(peer.Member.Account)).ToArray();
+            var added = members.Where(member => allocation.Peers.All(peer => peer.Member.Account != member.Account)).ToArray();
+            if (identities.Count - removed.Length + added.Length > options.MaxConnections) return false;
+            foreach (var peer in removed)
             {
-                var peer = new Peer(allocation, member, number++);
+                allocation.Peers.Remove(peer);
+                RemovePeer(peer);
+            }
+            var used = allocation.Peers.Select(peer => peer.Number).ToHashSet();
+            foreach (var member in added)
+            {
+                var number = Enumerable.Range(1, 10).Select(value => (ushort)value).First(value => !used.Contains(value));
+                used.Add(number);
+                var peer = new Peer(allocation, member, number);
                 allocation.Peers.Add(peer);
                 identities.Add(peer.Identity, peer);
             }
-            sessions.Add(session, allocation);
+            allocation.TopologyPending = added.Length != 0;
             return true;
         }
     }
@@ -74,7 +99,8 @@ public sealed class SignalingDirectory(SignalingOptions options)
     {
         lock (gate)
         {
-            if (!listening || !sessions.TryGetValue(session, out var allocation) || !Valid(allocation)) return null;
+            if (!listening) return null;
+            if (!sessions.TryGetValue(session, out var allocation) || !Valid(allocation)) return null;
             var peer = allocation.Peers.SingleOrDefault(p => p.Member.Account == account);
             return peer is null ? null : new JsonObject
             {
@@ -118,20 +144,29 @@ public sealed class SignalingDirectory(SignalingOptions options)
         }
     }
 
-    public bool AllRegistered(string session)
-    {
-        lock (gate)
-            return sessions.TryGetValue(session, out var allocation) && Valid(allocation) && allocation.Peers.All(p => p.Registered);
-    }
-
-    public bool Activate(string session)
+    public bool AllRegistered(string session, string? connection = null)
     {
         lock (gate)
         {
-            if (!sessions.TryGetValue(session, out var allocation) || !Valid(allocation)
-                || !allocation.Peers.All(p => p.Registered)) return false;
-            if (allocation.Active) return false;
-            allocation.Active = true;
+            var allocation = Select(session, connection);
+            return allocation is not null && allocation.Peers.All(p => p.Registered);
+        }
+    }
+
+    public bool Activate(string session, string? connection = null)
+    {
+        lock (gate)
+        {
+            var allocation = Select(session, connection);
+            if (allocation is null || !allocation.Peers.All(p => p.Registered)) return false;
+            if (!allocation.Active)
+            {
+                allocation.Active = true;
+                allocation.TopologyPending = false;
+                return true;
+            }
+            if (!allocation.TopologyPending) return false;
+            allocation.TopologyPending = false;
             return true;
         }
     }
@@ -160,11 +195,12 @@ public sealed class SignalingDirectory(SignalingOptions options)
     public bool IsAttached(string session, string account, string connection)
     { lock (gate) return Find(session, account, connection) is not null; }
 
-    public bool Queue(string session, string account, SignalingDelivery delivery)
+    public bool Queue(string session, string account, SignalingDelivery delivery, string? connection = null)
     {
         lock (gate)
         {
-            if (!sessions.TryGetValue(session, out var allocation) || !Valid(allocation)) return false;
+            var allocation = Select(session, connection);
+            if (allocation is null) return false;
             var peer = allocation.Peers.SingleOrDefault(p => p.Member.Account == account);
             if (peer is null || !peer.Registered) return false;
             if (peer.Out.Writer.TryWrite(delivery)) return true;
@@ -183,9 +219,8 @@ public sealed class SignalingDirectory(SignalingOptions options)
     {
         lock (gate)
         {
-            if (!sessions.TryGetValue(session, out var allocation)) return;
-            var peer = allocation.Peers.SingleOrDefault(p => p.Member.Account == account && p.Connection == connection);
-            if (peer is not null) allocation.Failed = true;
+            var peer = Find(session, account, connection);
+            if (peer is not null) peer.Allocation.Failed = true;
         }
     }
 
@@ -193,15 +228,41 @@ public sealed class SignalingDirectory(SignalingOptions options)
     {
         lock (gate)
         {
-            if (!sessions.Remove(session, out var allocation)) return;
-            foreach (var peer in allocation.Peers)
-            {
-                identities.Remove(peer.Identity);
-                CryptographicOperations.ZeroMemory(peer.Psk);
-                CryptographicOperations.ZeroMemory(peer.Secret);
-                peer.Out.Writer.TryComplete();
-            }
+            if (sessions.Remove(session, out var allocation)) RemovePeers(allocation);
         }
+    }
+
+    private Allocation Create(string session, string representative, IReadOnlyList<SignalingMember> members, DateTimeOffset deadline)
+    {
+        var allocation = new Allocation(session, representative, deadline)
+        { HardDeadline = DateTimeOffset.UtcNow.AddSeconds(options.MaxSessionSeconds) };
+        ushort number = 1;
+        foreach (var member in members.OrderBy(m => m.Account, StringComparer.Ordinal))
+        {
+            var peer = new Peer(allocation, member, number++);
+            allocation.Peers.Add(peer);
+            identities.Add(peer.Identity, peer);
+        }
+        return allocation;
+    }
+
+    private void RemovePeers(Allocation allocation)
+    {
+        foreach (var peer in allocation.Peers) RemovePeer(peer);
+    }
+
+    private void RemovePeer(Peer peer)
+    {
+        identities.Remove(peer.Identity);
+        CryptographicOperations.ZeroMemory(peer.Psk);
+        CryptographicOperations.ZeroMemory(peer.Secret);
+        peer.Out.Writer.TryComplete();
+    }
+
+    private static void ValidateMembers(string representative, IReadOnlyList<SignalingMember> members)
+    {
+        if (members.Count is < 2 or > 10 || members.Select(m => m.Account).Distinct().Count() != members.Count
+            || !members.Any(m => m.Account == representative)) throw new InvalidDataException("Invalid signaling membership.");
     }
 
     private bool Valid(Allocation allocation)
@@ -211,9 +272,24 @@ public sealed class SignalingDirectory(SignalingOptions options)
             && (allocation.Active ? allocation.Peers.All(p => now - p.LastSeen < TimeSpan.FromSeconds(options.IdleTimeoutSeconds)) : now < allocation.Deadline);
     }
 
-    private Peer? Find(string session, string account, string connection) =>
-        sessions.TryGetValue(session, out var allocation) && Valid(allocation)
-            ? allocation.Peers.SingleOrDefault(p => p.Member.Account == account && p.Connection == connection) : null;
+    private Allocation? Select(string session, string? connection)
+    {
+        if (!sessions.TryGetValue(session, out var allocation) || !Valid(allocation)) return null;
+        if (connection is null || allocation.Peers.Any(peer => peer.Connection == connection)) return allocation;
+        return null;
+    }
+
+    private Peer? Find(string session, string account, string connection)
+    {
+        var allocation = Select(session, connection);
+        return allocation?.Peers.SingleOrDefault(peer => peer.Member.Account == account && peer.Connection == connection);
+    }
+
+    public SignalingSnapshot? Current(string session, string account, string connection)
+    {
+        lock (gate)
+            return Find(session, account, connection) is { } peer ? Snapshot(peer) : null;
+    }
 
     private bool TryPeer(byte[] identity, out Peer peer)
     {

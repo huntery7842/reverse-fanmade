@@ -90,7 +90,7 @@ public sealed class MatchmakingCoordinator(
                 ticket.State = "canceled";
                 ticket.Sequence++;
             }
-            foreach (var session in registry.Sessions.Values.Where(s => s.Reserved.Contains(account)).ToArray()) EndSession(session);
+            foreach (var session in registry.Sessions.Values.Where(s => s.Reserved.Contains(account)).ToArray()) LeaveSession(session, account);
         }
     }
 
@@ -174,11 +174,13 @@ public sealed class MatchmakingCoordinator(
                     return GameJoinProtocol.Reply(session.Id, joined, session.Keyword);
                 }
                 if (session.JoinDisabled || session.Players.Count >= session.Capacity) throw Error(409, "Session is closed or full.");
+                var refreshSignaling = session.ProviderAllocated;
                 session.Reserved.Add(account);
                 session.Players.Add(account, player);
                 session.Sequence++;
                 SessionEvent(session, "member:players:created", GameJoinProtocol.CreatedEvent(player));
-                TryAllocateSignaling(session);
+                if (refreshSignaling) RefreshSignaling(session, account);
+                else TryAllocateSignaling(session);
                 return GameJoinProtocol.Reply(session.Id, player, session.Keyword);
             }
             if (path.EndsWith("/members", StringComparison.Ordinal))
@@ -189,8 +191,7 @@ public sealed class MatchmakingCoordinator(
                 if (!session.Reserved.Contains(target)) throw Error(404, "Member not found.");
                 if (method == "DELETE")
                 {
-
-                    EndSession(session);
+                    LeaveSession(session, target);
                     return new();
                 }
                 if (!session.Players.TryGetValue(target, out var player)) throw Error(409, "Member has not joined.");
@@ -371,6 +372,31 @@ public sealed class MatchmakingCoordinator(
         }
     }
 
+    private void LeaveSession(GameSessionRegistry.Session session, string account)
+    {
+        if (string.IsNullOrEmpty(session.Keyword) || session.Representative == account)
+        {
+            EndSession(session);
+            return;
+        }
+        if (!session.Players.Remove(account, out var player))
+        {
+            session.Reserved.Remove(account);
+            return;
+        }
+        session.Reserved.Remove(account);
+        session.Sequence++;
+        SessionEvent(session, "member:players:deleted", GameJoinProtocol.CreatedEvent(player));
+        if (!session.ProviderAllocated) return;
+        if (session.Players.Count < 2)
+        {
+            signaling.Remove(session.Id);
+            session.ProviderAllocated = false;
+            return;
+        }
+        RefreshSignaling(session);
+    }
+
     private void TryAllocateSignaling(GameSessionRegistry.Session session)
     {
         if (session.ProviderAllocated || session.SignalingDeadline is not { } deadline
@@ -387,6 +413,32 @@ public sealed class MatchmakingCoordinator(
             if (descriptor is not null) hub.Publish([account], "gameSession:signaling:created", new()
             {
                 ["sessionId"] = session.Id, ["gameSessionSequenceNo"] = session.Sequence, ["signaling"] = descriptor
+            });
+        }
+    }
+
+    private void RefreshSignaling(GameSessionRegistry.Session session, string? credentialAccount = null)
+    {
+        if (session.SignalingTimeoutSeconds is not { } timeout || session.Players.Count < 2
+            || session.Players.Count != session.Reserved.Count || !signaling.IsListening) return;
+        var members = session.Players.Select(p => new SignalingMember(p.Key,
+            GameJoinProtocol.ReadNonce(p.Value["customData1"]!.GetValue<string>()))).ToArray();
+        if (!signaling.Replace(session.Id, session.Representative, members, DateTimeOffset.UtcNow.AddSeconds(timeout))) return;
+        session.ProviderAllocated = true;
+        if (credentialAccount is null) return;
+        session.Sequence++;
+        foreach (var account in session.Reserved)
+        {
+            if (account == credentialAccount && signaling.Descriptor(session.Id, account) is { } descriptor)
+            {
+                hub.Publish([account], "gameSession:signaling:created", new()
+                {
+                    ["sessionId"] = session.Id, ["gameSessionSequenceNo"] = session.Sequence, ["signaling"] = descriptor
+                });
+            }
+            else hub.Publish([account], "gameSession:operateSequenceNo", new()
+            {
+                ["sessionId"] = session.Id, ["gameSessionSequenceNo"] = session.Sequence, ["skip"] = 0
             });
         }
     }

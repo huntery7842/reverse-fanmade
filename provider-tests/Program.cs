@@ -17,6 +17,7 @@ internal static class Program
             ("membership and capacity bounds; removal releases capacity", DirectoryTests.Bounds),
             ("authenticated attachment, duplicate attachment and session revocation", DirectoryTests.AttachAndRevoke),
             ("bounded reliable queue fails closed", DirectoryTests.QueueBounds),
+            ("membership expansion preserves active peers and credentials", DirectoryTests.MembershipExpansion),
             ("startup gates and observing mode", ConversationTests.Startup),
             ("explicit negative controls emit zero without opening startup gates", ConversationTests.NegativeControls),
             ("all registration orders and fixed registration/readiness bytes", ConversationTests.RegistrationOrders),
