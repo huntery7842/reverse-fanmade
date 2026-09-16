@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Nodes;
 using ReVerse.Capture.Signaling;
 
@@ -92,7 +94,7 @@ public sealed class MatchmakingCoordinator(
         }
     }
 
-    public JsonObject SessionRequest(string account, string nickname, string path, string method, string[] ids, string? member, JsonObject body, GameSessionRead? read = null)
+    public JsonObject SessionRequest(string account, string nickname, string path, string method, string[] ids, string? member, JsonObject body, GameSessionRead? read = null, string keyword = "")
     {
         lock (gate)
         {
@@ -110,11 +112,21 @@ public sealed class MatchmakingCoordinator(
                 return new JsonObject { ["gameSessions"] = new JsonArray(matching.Select(s => (JsonNode)read.Serialize(s)).ToArray()) };
             }
 
-            if (path == "/v1/gameSession" && method == "POST") throw Error(501, "Client-created session response schema is not yet recovered.");
+            if (path == "/v1/gameSession" && method == "POST") return CreatePrivate(account, nickname, body);
             if (path.EndsWith("/invitation", StringComparison.Ordinal) || path.EndsWith("/spectators", StringComparison.Ordinal))
                 throw Error(501, "Invitations and spectators are not implemented.");
-            if (ids.Length != 1) throw Error(400, "One X-Be-Session-Id is required.");
-            var session = Authorized(account, ids[0]);
+            var join = path.EndsWith("/member/players", StringComparison.Ordinal) && method == "POST";
+            GameSessionRegistry.Session session;
+            if (join && ids.Length == 0 && !string.IsNullOrEmpty(keyword))
+                session = registry.Sessions.Values.FirstOrDefault(s => !string.IsNullOrEmpty(s.Keyword) && KeywordEquals(keyword, s.Keyword))
+                    ?? throw Error(404, "Session not found.");
+            else
+            {
+                if (ids.Length != 1) throw Error(400, "One X-Be-Session-Id is required.");
+                session = join
+                    ? registry.Sessions.TryGetValue(ids[0], out var found) ? found : throw Error(404, "Session not found.")
+                    : Authorized(account, ids[0]);
+            }
             var representative = session.Representative == account;
             if (path == "/v1/gameSession")
             {
@@ -144,21 +156,30 @@ public sealed class MatchmakingCoordinator(
             if (path.EndsWith("/member/players", StringComparison.Ordinal))
             {
                 if (method != "POST") throw Error(405, "Use POST to join.");
-                var player = GameJoinProtocol.ParsePlayer(account, nickname, body);
-                if (body["useCrossPlay"] is { } crossPlay && crossPlay.GetValue<bool>() != session.UseCrossPlay)
+                if (body["useCrossPlay"] is JsonValue flag && flag.TryGetValue<bool>(out var cross)
+                    && cross != session.UseCrossPlay)
                     throw Error(409, "Join cross-play setting differs from the matched tickets.");
+                var player = GameJoinProtocol.ParsePlayer(account, nickname, body);
+                if (!session.Reserved.Contains(account))
+                {
+                    if (session.Players.Count >= session.Capacity)
+                        throw Error(409, "Session is closed or full.");
+                    if (string.IsNullOrEmpty(session.Keyword) || !KeywordEquals(keyword, session.Keyword))
+                        throw Error(403, "Join before sending messages.");
+                }
                 if (session.Players.TryGetValue(account, out var joined))
                 {
                     if (joined["customData1"]!.GetValue<string>() != player["customData1"]!.GetValue<string>())
                         throw Error(409, "A different join attempt already owns this reservation.");
-                    return GameJoinProtocol.Reply(session.Id, joined);
+                    return GameJoinProtocol.Reply(session.Id, joined, session.Keyword);
                 }
                 if (session.JoinDisabled || session.Players.Count >= session.Capacity) throw Error(409, "Session is closed or full.");
+                session.Reserved.Add(account);
                 session.Players.Add(account, player);
                 session.Sequence++;
                 SessionEvent(session, "member:players:created", GameJoinProtocol.CreatedEvent(player));
                 TryAllocateSignaling(session);
-                return GameJoinProtocol.Reply(session.Id, player);
+                return GameJoinProtocol.Reply(session.Id, player, session.Keyword);
             }
             if (path.EndsWith("/members", StringComparison.Ordinal))
             {
@@ -223,6 +244,111 @@ public sealed class MatchmakingCoordinator(
         }
     }
 
+    private JsonObject CreatePrivate(string account, string nickname, JsonObject body)
+    {
+        if (registry.Sessions.Values.Any(s => s.Reserved.Contains(account)))
+            throw Error(409, "Leave the current offered/joined session before searching again.");
+        if (body.Any(p => p.Key is not ("gameSession" or "regions")))
+            throw Error(400, "Unsupported session create field.");
+        JsonObject request = body["gameSession"] switch
+        {
+            JsonObject obj => obj,
+            JsonArray { Count: 1 } arr when arr[0] is JsonObject single => single,
+            null when body.ContainsKey("gameSession") => throw Error(400, "Unsupported session create field."),
+            null => body,
+            _ => throw Error(400, "Unsupported session create field.")
+        };
+        if (body["regions"] is JsonArray rootRegions)
+        {
+            foreach (var region in rootRegions)
+            {
+                if (region is JsonValue value && value.TryGetValue<string>(out _)) continue;
+                if (region is JsonObject obj && obj["name"] is JsonValue name && name.TryGetValue<string>(out _)) continue;
+                throw Error(400, "Invalid region.");
+            }
+        }
+        else if (body.ContainsKey("regions"))
+            throw Error(400, "Invalid region.");
+        if (request.Any(p => p.Key is not ("maxPlayers" or "maxSpectators" or "member" or "joinDisabled"
+            or "supportedService" or "customData1" or "customData2" or "useCrossPlay" or "usePlayerSession"
+            or "keywordType" or "regions")))
+            throw Error(400, "Unsupported session create field.");
+        if (request["keywordType"] is JsonObject keywords)
+        {
+            if (keywords.Any(p => p.Key is not ("length" or "charType" or "charOmitType" or "valid")))
+                throw Error(400, "Unsupported session create field.");
+        }
+        else if (request.ContainsKey("keywordType")) throw Error(400, "Unsupported session create field.");
+        if (request["regions"] is JsonArray memberRegions)
+        {
+            foreach (var region in memberRegions)
+            {
+                if (region is JsonValue value && value.TryGetValue<string>(out _)) continue;
+                if (region is JsonObject obj && obj["name"] is JsonValue name && name.TryGetValue<string>(out _)) continue;
+                throw Error(400, "Invalid region.");
+            }
+        }
+        else if (request.ContainsKey("regions")) throw Error(400, "Invalid region.");
+        var capacity = request["maxPlayers"]?.GetValue<int>()
+            ?? throw Error(400, "maxPlayers is required.");
+        if (capacity is < 2 or > 10) throw Error(400, "maxPlayers must be 2..10 players.");
+        var spectators = request["maxSpectators"]?.GetValue<int>() ?? 0;
+        if (spectators is < 0 or > 10) throw Error(400, "maxSpectators must be 0..10.");
+        var member = request["member"] as JsonObject ?? throw Error(400, "member is required.");
+        if (member["players"] is not JsonArray { Count: 1 } players || players[0] is not JsonObject host
+            || RequiredString(host, "accountId") != account)
+            throw Error(400, "Exactly one host player matching the authenticated account is required.");
+        var supported = request["supportedService"];
+        if (supported is not null && supported is not JsonArray)
+            throw Error(400, "supportedService must be an array.");
+        if (supported is JsonArray services && services.Any(s => s is not JsonValue v || !v.TryGetValue<string>(out _)))
+            throw Error(400, "supportedService entries must be strings.");
+        var custom1 = request["customData1"]?.GetValue<string>() ?? "";
+        var custom2 = request["customData2"]?.GetValue<string>() ?? "";
+        if (custom1.Length > 16384 || custom2.Length > 16384) throw Error(400, "Session metadata is too large.");
+        var crossPlay = (request["useCrossPlay"] as JsonValue)?.TryGetValue<bool>(out var cross) == true ? cross : true;
+        var keyword = NewKeyword();
+        while (registry.Sessions.Values.Any(s => !string.IsNullOrEmpty(s.Keyword) && KeywordEquals(s.Keyword, keyword)))
+            keyword = NewKeyword();
+        var session = registry.Create(account, capacity, keyword);
+        session.UseCrossPlay = crossPlay;
+        session.CustomData1 = custom1;
+        session.CustomData2 = custom2;
+        var player = GameJoinProtocol.ParsePlayer(account, nickname, new JsonObject
+        {
+            ["players"] = new JsonArray(new JsonObject
+            {
+                ["accountId"] = account, ["joinState"] = "JOINED",
+                ["customData1"] = host["customData1"]?.GetValue<string>() ?? """{"version":1,"nonce":1}"""
+            })
+        });
+        session.Players.Add(account, player);
+        session.Sequence++;
+        SessionEvent(session, "member:players:created", GameJoinProtocol.CreatedEvent(player));
+        return new JsonObject
+        {
+            ["gameSessions"] = new JsonArray(new JsonObject
+            {
+                ["sessionId"] = session.Id, ["gameSessionSequenceNo"] = session.Sequence,
+                ["keyword"] = keyword, ["serviceEncryptionKey"] = session.ServiceEncryptionKey,
+                ["member"] = new JsonObject { ["players"] = new JsonArray(player.DeepClone()), ["spectators"] = new JsonArray() }
+            })
+        };
+    }
+
+    private static string NewKeyword()
+    {
+        const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        return string.Create(4, alphabet, static (span, table) =>
+        {
+            foreach (ref var c in span) c = table[RandomNumberGenerator.GetInt32(table.Length)];
+        });
+    }
+
+    private static bool KeywordEquals(string presented, string expected) =>
+        CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(presented), Encoding.UTF8.GetBytes(expected))
+        && presented.Length == expected.Length;
+
     private GameSessionRegistry.Session Authorized(string account, string id)
     {
         if (!registry.Sessions.TryGetValue(id, out var session) || !session.Reserved.Contains(account)) throw Error(404, "Session not found.");
@@ -248,7 +374,7 @@ public sealed class MatchmakingCoordinator(
     private void TryAllocateSignaling(GameSessionRegistry.Session session)
     {
         if (session.ProviderAllocated || session.SignalingDeadline is not { } deadline
-            || session.Players.Count != session.Reserved.Count || !signaling.IsListening) return;
+            || session.Players.Count < 2 || session.Players.Count != session.Reserved.Count || !signaling.IsListening) return;
         var members = session.Players.Select(p => new SignalingMember(p.Key,
             GameJoinProtocol.ReadNonce(p.Value["customData1"]!.GetValue<string>()))).ToArray();
         if (!signaling.Allocate(session.Id, session.Representative, members, deadline)) return;

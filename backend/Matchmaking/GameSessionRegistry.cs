@@ -14,6 +14,13 @@ public sealed class GameSessionRegistry
         return session;
     }
 
+    internal Session Create(string host, int capacity, string keyword)
+    {
+        var session = new Session([host], capacity, DateTimeOffset.MaxValue) { Keyword = keyword };
+        Sessions.Add(session.Id, session);
+        return session;
+    }
+
     internal sealed class Session(string[] accounts, int capacity, DateTimeOffset deadline)
     {
         public string Id { get; } = Guid.NewGuid().ToString("N");
@@ -28,6 +35,7 @@ public sealed class GameSessionRegistry
         public bool UseCrossPlay { get; set; }
         public bool UsePlayerSession => false;
         public string OfferId { get; set; } = "";
+        public string Keyword { get; set; } = "";
         public string ServiceEncryptionKey => "";
         public int? SignalingTimeoutSeconds { get; private set; }
         public DateTimeOffset? SignalingDeadline { get; private set; }

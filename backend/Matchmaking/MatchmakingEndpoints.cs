@@ -59,7 +59,8 @@ public sealed class MatchmakingEndpoints(MatchmakingCoordinator coordinator, Gam
                 var ids = Header(context, path == "/v1/gameSession" && method == "GET" ? "X-Be-Session-Ids" : "X-Be-Session-Id")
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                 if (ids.Length > 10) throw MatchmakingCoordinator.Error(400, "Too many session IDs.");
-                response = coordinator.SessionRequest(account, identity.Nickname, path, method, ids, Header(context, "X-Be-Account-Id"), request, read);
+                response = coordinator.SessionRequest(account, identity.Nickname, path, method, ids, Header(context, "X-Be-Account-Id"), request, read,
+                    Header(context, "X-Be-Session-Keyword"));
             }
             else throw MatchmakingCoordinator.Error(404, "Unknown matchmaking route.");
         }

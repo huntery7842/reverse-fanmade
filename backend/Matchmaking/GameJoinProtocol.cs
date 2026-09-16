@@ -54,13 +54,12 @@ internal static class GameJoinProtocol
     private static bool Integer(JsonNode? value) => value is JsonValue number
         && (number.TryGetValue<long>(out _) || number.TryGetValue<ulong>(out _));
 
-    public static JsonObject Reply(string session, JsonObject player) => new()
+    public static JsonObject Reply(string session, JsonObject player, string keyword = "") => new()
     {
         ["sessionId"] = session, ["players"] = new JsonArray(player.DeepClone()),
 
 
-
-        ["serviceEncryptionKey"] = "", ["keyword"] = ""
+        ["serviceEncryptionKey"] = "", ["keyword"] = keyword
     };
 
     public static JsonObject CreatedEvent(JsonObject player) => new()

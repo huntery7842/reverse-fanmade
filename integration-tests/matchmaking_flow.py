@@ -38,7 +38,9 @@ class Harness:
 
     def start(self):
         backend_dll = os.environ.get('REVERSE_TEST_BACKEND_DLL', str(ROOT / 'backend/bin/Debug/net10.0/ReVerse.Capture.dll'))
-        self.proc = subprocess.Popen(['dotnet', backend_dll],
+        backend_exe = os.environ.get('REVERSE_TEST_BACKEND_EXE')
+        command = [backend_exe] if backend_exe else ['dotnet', backend_dll]
+        self.proc = subprocess.Popen(command,
                                      cwd=ROOT / 'backend', env=self.env, stdout=self.output, stderr=self.output,
                                      creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
         deadline = time.monotonic() + 20
@@ -158,7 +160,7 @@ def main():
         h.request('GET', '/v1/gameSession', a, expected=400)
         h.request('GET', '/v1/gameSession/signaling', a, headers=headers, expected=503)
         h.request('PUT', '/v1/gameSession/signaling', a, headers=headers, expected=405)
-        h.request('POST', '/v1/gameSession', a, expected=501)
+        h.request('POST', '/v1/gameSession', outsider, {}, expected=400)
         h.request('POST', '/v1/gameSession/member/players', a, join_body(b), headers=headers, expected=403)
         for account, ws in ((a, wa), (b, wb)):
             h.request('POST', '/v1/gameSession/member/players', account, join_body(account), headers=headers)
