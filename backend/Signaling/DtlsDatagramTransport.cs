@@ -7,7 +7,8 @@ namespace ReVerse.Capture.Signaling;
 
 
 internal sealed class DtlsDatagramTransport(
-    Socket socket, IPEndPoint remoteEndPoint, int queueCapacity, int maxDatagramBytes) : DatagramTransport
+    Socket socket, IPEndPoint remoteEndPoint, int queueCapacity, int maxDatagramBytes,
+    Action<string, IPEndPoint, ReadOnlyMemory<byte>>? datagramLog = null) : DatagramTransport
 {
     private readonly object gate = new();
     private readonly Queue<byte[]> incoming = new();
@@ -84,6 +85,7 @@ internal sealed class DtlsDatagramTransport(
             int sent = socket.SendTo(buffer, SocketFlags.None, remoteEndPoint);
             if (sent != buffer.Length)
                 throw new IOException("DTLS datagram could not be sent completely.");
+            datagramLog?.Invoke("backendToClient", remoteEndPoint, buffer.ToArray());
         }
         catch (SocketException)
         {

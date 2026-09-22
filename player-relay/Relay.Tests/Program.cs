@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json.Nodes;
 using ReVerse.Relay;
 
 static int Port()
@@ -76,7 +77,8 @@ upstream.Run(async context =>
 });
 await upstream.StartAsync();
 var certDirectory = Path.Combine(AppContext.BaseDirectory, "artifacts", Guid.NewGuid().ToString("N"));
-var relay = new RelayService();
+var detailedDirectory = Path.Combine(certDirectory, "detailed-logs");
+var relay = new RelayService(detailedDirectory) { DetailedLogsEnabled = true };
 await relay.StartAsync(player, relayPort, tlsPort, certDirectory);
 try
 {
@@ -118,6 +120,46 @@ try
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
         Check(ws.State == WebSocketState.Closed, "WebSocket close handshake " + secure);
     }
+    var detailedPath = Directory.GetFiles(detailedDirectory, "detailed-traffic-*.jsonl").Single();
+    string[] ReadDetailedLines()
+    {
+        using var file = new FileStream(detailedPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(file);
+        return reader.ReadToEnd().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+    }
+    var entries = ReadDetailedLines().Select(line => JsonNode.Parse(line)!).ToArray();
+    Check(entries.Any(entry => entry["type"]?.GetValue<string>() == "relayLoginRequest" &&
+        entry["data"]?["payload"]?["Utf8"]?.GetValue<string>()?.Contains(player.SecretKey, StringComparison.Ordinal) == true),
+        "detailed relay login includes the full secret");
+    var patchId = entries.First(entry => entry["type"]?.GetValue<string>() == "relayRequestStart" &&
+        entry["data"]?["rawTarget"]?.GetValue<string>() == "/echo?q=a%2Fb&x=1")["data"]!["id"]!.GetValue<string>();
+    byte[] Captured(string type, string id) => entries.Where(entry => entry["type"]?.GetValue<string>() == type &&
+        entry["data"]?["id"]?.GetValue<string>() == id)
+        .SelectMany(entry => Convert.FromBase64String(entry["data"]!["payload"]!["Base64"]!.GetValue<string>()))
+        .ToArray();
+    Check(Captured("relayRequestBody", patchId).SequenceEqual(bytes), "detailed relay HTTP request body is exact");
+    Check(Captured("relayResponseBody", patchId).SequenceEqual(bytes), "detailed relay HTTP response body is exact");
+    var socketId = entries.First(entry => entry["type"]?.GetValue<string>() == "relayRequestStart" &&
+        entry["data"]?["rawTarget"]?.GetValue<string>() == "/socket")["data"]!["id"]!.GetValue<string>();
+    Check(entries.Where(entry => entry["type"]?.GetValue<string>() == "relayWebSocketFrame" &&
+        entry["data"]?["id"]?.GetValue<string>() == socketId &&
+        entry["data"]?["direction"]?.GetValue<string>() == "clientToBackend")
+        .SelectMany(entry => Convert.FromBase64String(entry["data"]!["payload"]!["Base64"]!.GetValue<string>()))
+        .SequenceEqual(bytes), "detailed relay WebSocket client frames are exact");
+    Check(entries.Where(entry => entry["type"]?.GetValue<string>() == "relayWebSocketFrame" &&
+        entry["data"]?["id"]?.GetValue<string>() == socketId &&
+        entry["data"]?["direction"]?.GetValue<string>() == "backendToClient")
+        .SelectMany(entry => Convert.FromBase64String(entry["data"]!["payload"]!["Base64"]!.GetValue<string>()))
+        .SequenceEqual(bytes), "detailed relay WebSocket backend frames are exact");
+    relay.DetailedLogsEnabled = false;
+    var count = ReadDetailedLines().Length;
+    using (var quiet = await client.GetAsync($"http://127.0.0.1:{relayPort}/echo"))
+        Check((int)quiet.StatusCode == 201, "relay continues when detailed logging is off");
+    Check(ReadDetailedLines().Length == count, "detailed relay logging stops live");
+    relay.DetailedLogsEnabled = true;
+    using (var resumed = await client.GetAsync($"http://127.0.0.1:{relayPort}/echo"))
+        Check((int)resumed.StatusCode == 201, "relay continues when detailed logging resumes");
+    Check(ReadDetailedLines().Length > count, "detailed relay logging resumes live");
     using var active = new ClientWebSocket();
     active.Options.AddSubProtocol("relay-test");
     await active.ConnectAsync(new Uri($"ws://127.0.0.1:{relayPort}/socket"), CancellationToken.None);

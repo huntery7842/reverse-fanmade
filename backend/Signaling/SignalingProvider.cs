@@ -3,12 +3,13 @@ using System.Net;
 using System.Threading.Channels;
 using Org.BouncyCastle.Tls;
 using ReVerse.Capture.Capturing;
+using ReVerse.Traffic;
 
 namespace ReVerse.Capture.Signaling;
 
 
 public sealed class SignalingProvider(SignalingOptions options, SignalingDirectory directory,
-    RequestLog log, ILogger<SignalingProvider> logger) : BackgroundService
+    RequestLog log, DetailedTrafficLog detailed, ILogger<SignalingProvider> logger) : BackgroundService
 {
     private DtlsUdpHost? host;
     private long hostEvents;
@@ -19,7 +20,12 @@ public sealed class SignalingProvider(SignalingOptions options, SignalingDirecto
     {
         if (!options.Enabled) { logger.LogInformation("Signaling provider disabled"); return; }
         host = new DtlsUdpHost(IPAddress.Parse(options.BindAddress), options.Port, options.MaxConnections,
-            options.HandshakeTimeoutSeconds, directory.LookupPsk, Connected, HostStage);
+            options.HandshakeTimeoutSeconds, directory.LookupPsk, Connected, HostStage,
+            datagramLog: (direction, remote, bytes) => detailed.Write("udpDatagram", new
+            {
+                direction, remoteAddress = remote.Address.ToString(), remotePort = remote.Port,
+                localPort = options.Port, payload = DetailedTrafficLog.Payload(bytes.Span)
+            }));
         await host.StartAsync(cancellationToken);
         directory.SetListening(true);
         logger.LogWarning("FIELD TEST signaling UDP bound at {Bind}:{Port}; advertised {PublicHost}:{PublicPort}; experimental replies {Experimental}. HTTP tunnels do not carry UDP. Gameplay unverified.",
@@ -110,6 +116,11 @@ public sealed class SignalingProvider(SignalingOptions options, SignalingDirecto
                 if (packet.Bytes.Length > transport.GetSendLimit()) throw new WireFormatException("Encoded packet exceeds DTLS send limit.");
                 if (packet.Attempt > 20) throw new WireFormatException("Reliable packet retry budget exhausted.");
                 transport.Send(packet.Bytes.Span);
+                detailed.Write("signalingPlaintext", new
+                {
+                    direction = "backendToClient", connection, session = peer.Session, account = peer.Account,
+                    payload = DetailedTrafficLog.Payload(packet.Bytes.Span)
+                });
                 sent++;
                 if (sent <= 32 || packet.IsRetransmission && packet.Attempt is 2 or 5 or 10)
                     Audit("packet_sent", connection, peer.Session, peer.Account,
@@ -124,6 +135,11 @@ public sealed class SignalingProvider(SignalingOptions options, SignalingDirecto
                 int length = transport.Receive(buffer, 0, buffer.Length, 100);
                 if (length > 0)
                 {
+                    detailed.Write("signalingPlaintext", new
+                    {
+                        direction = "clientToBackend", connection, session = peer.Session, account = peer.Account,
+                        payload = DetailedTrafficLog.Payload(buffer.AsSpan(0, length))
+                    });
                     received++;
                     var result = wire.Receive(buffer.AsMemory(0, length));
                     directory.Touch(peer.Session, peer.Account, connection);
@@ -176,6 +192,25 @@ public sealed class SignalingProvider(SignalingOptions options, SignalingDirecto
         {
             directory.Detach(peer.Session, peer.Account, connection);
             Audit("association_closed", connection, peer.Session, peer.Account, new { received, sent, forwarded, payloadRecords, secondaryPayloads });
+        }
+        if (!stopping.IsCancellationRequested && options.CloseGracePeriod > TimeSpan.Zero)
+        {
+            var deadline = DateTimeOffset.UtcNow + options.CloseGracePeriod;
+            while (DateTimeOffset.UtcNow < deadline && !stopping.IsCancellationRequested)
+            {
+                try
+                {
+                    if (wire.IsBound) Send(wire.Tick());
+                    var length = transport.Receive(buffer, 0, buffer.Length, 50);
+                    if (length > 0)
+                        detailed.Write("signalingPlaintext", new
+                        {
+                            direction = "clientToBackend", connection, session = peer.Session, account = peer.Account,
+                            payload = DetailedTrafficLog.Payload(buffer.AsSpan(0, length))
+                        });
+                }
+                catch { break; }
+            }
         }
     }
 

@@ -105,6 +105,11 @@
               <TextBlock x:Name="RelayPortsText" Grid.Column="1" Classes="label" Foreground="#5E5751" />
             </Grid>
           </StackPanel>
+          <StackPanel Margin="0,20,0,0" Spacing="7">
+            <Button x:Name="DetailedLogsButton" Classes="secondary" Height="36" Click="OnDetailedLogsClicked" />
+            <TextBlock x:Name="DetailedLogsDescriptionText" Classes="helper" TextWrapping="Wrap" />
+            <TextBlock x:Name="DetailedLogsPathText" Classes="helper" TextWrapping="Wrap" IsVisible="False" />
+          </StackPanel>
           <TextBlock x:Name="ErrorText" IsVisible="False" Margin="0,10,0,0" Foreground="#E05A62" FontFamily="Consolas,DejaVu Sans Mono" FontSize="10" TextWrapping="Wrap" />
         </StackPanel>
       </ScrollViewer>

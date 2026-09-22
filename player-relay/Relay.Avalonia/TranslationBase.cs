@@ -33,6 +33,10 @@ public abstract class TranslationBase : ITranslation
     public abstract string StopRelayButton { get; }
     public abstract string StartRelayTooltip { get; }
     public abstract string StopRelayTooltip { get; }
+    public virtual string DetailedLogsOnButton => "DETAILED LOGS: ON";
+    public virtual string DetailedLogsOffButton => "DETAILED LOGS: OFF";
+    public virtual string DetailedLogsDescription => "Records full URLs, headers, bodies, WebSocket messages and signaling packets, including credentials.";
+    public virtual string DetailedLogsPathLabel => "Log folder";
     public abstract string StatusStopped { get; }
     public abstract string StatusSigningIn { get; }
     public abstract string StatusRunningWaitingForGame { get; }

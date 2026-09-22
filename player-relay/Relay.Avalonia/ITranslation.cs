@@ -32,6 +32,10 @@ public interface ITranslation
     string StopRelayButton { get; }
     string StartRelayTooltip { get; }
     string StopRelayTooltip { get; }
+    string DetailedLogsOnButton { get; }
+    string DetailedLogsOffButton { get; }
+    string DetailedLogsDescription { get; }
+    string DetailedLogsPathLabel { get; }
     string StatusStopped { get; }
     string StatusSigningIn { get; }
     string StatusRunningWaitingForGame { get; }

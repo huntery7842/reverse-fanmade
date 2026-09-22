@@ -30,6 +30,10 @@ public sealed class UkrainianTranslation : TranslationBase
     public override string StopRelayButton => "ЗУПИНИТИ РЕТРАНСЛЯТОР";
     public override string StartRelayTooltip => "Увійти та запустити локальний ретранслятор.";
     public override string StopRelayTooltip => "Зупинити локальний ретранслятор.";
+    public override string DetailedLogsOnButton => "ДЕТАЛЬНІ ЛОГИ: УВІМКНЕНО";
+    public override string DetailedLogsOffButton => "ДЕТАЛЬНІ ЛОГИ: ВИМКНЕНО";
+    public override string DetailedLogsDescription => "Записує повні URL, заголовки, тіла, повідомлення WebSocket і пакети сигналізації, зокрема облікові дані.";
+    public override string DetailedLogsPathLabel => "Папка логів";
     public override string StatusStopped => "Зупинено";
     public override string StatusSigningIn => "Виконується вхід…";
     public override string StatusRunningWaitingForGame => "Працює — очікування гри";

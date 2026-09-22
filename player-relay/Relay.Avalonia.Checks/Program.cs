@@ -1,3 +1,4 @@
+using ReVerse.Relay;
 using ReVerse.Relay.Desktop;
 
 static void Check(bool condition, string name)
@@ -38,12 +39,14 @@ if (OperatingSystem.IsWindows())
     var launcher = Path.Combine(Path.GetFullPath(folder), "ReVerse.Capture.exe");
     Check(command.StartsWith("set \"Relay__Enabled=true\" && set \"Steam__Mode=fallback\"", StringComparison.Ordinal), "Windows backend environment generated");
     Check(command.Contains("set \"Matchmaking__Rulesets__match_master=4\"", StringComparison.Ordinal), "Windows match size included");
+    Check(command.Contains($"set \"Capture__DetailedLogsControlFile={RelaySettings.DetailedLogsControlFile}\"", StringComparison.Ordinal), "Windows detailed log switch included");
     Check(command.EndsWith($"\"{launcher}\"", StringComparison.Ordinal), "Windows backend executable included and quoted");
 }
 else if (OperatingSystem.IsLinux())
 {
     Check(command.StartsWith("env Relay__Enabled=true Steam__Mode=fallback ", StringComparison.Ordinal), "Linux backend command generated with environment");
     Check(command.Contains("Matchmaking__Rulesets__match_master=4", StringComparison.Ordinal), "Linux match size included");
+    Check(command.Contains("Capture__DetailedLogsControlFile=", StringComparison.Ordinal), "Linux detailed log switch included");
     Check(command.EndsWith("./ReVerse.Capture", StringComparison.Ordinal), "Linux backend executable included");
 }
 

@@ -16,6 +16,8 @@ internal static class Program
             ("per-account/session credentials, copies and allocation idempotency", DirectoryTests.Credentials),
             ("membership and capacity bounds; removal releases capacity", DirectoryTests.Bounds),
             ("authenticated attachment, duplicate attachment and session revocation", DirectoryTests.AttachAndRevoke),
+            ("active membership refresh preserves remaining routes and drops stale routes", DirectoryTests.MembershipRefresh),
+            ("single-member reduction preserves the remaining signaling association", DirectoryTests.MembershipReductionToSingle),
             ("bounded reliable queue fails closed", DirectoryTests.QueueBounds),
             ("membership expansion preserves active peers and credentials", DirectoryTests.MembershipExpansion),
             ("startup gates and observing mode", ConversationTests.Startup),
@@ -45,13 +47,15 @@ internal static class Program
         catch (Exception error) { ++failures; Console.Error.WriteLine($"FAIL admission deadline: {error}"); }
         try { await NetworkTests.ProviderSmoke(); Console.WriteLine("PASS real provider: two DTLS clients, startup, registration, forwarding, revocation and logs"); }
         catch (Exception error) { ++failures; Console.Error.WriteLine($"FAIL real provider smoke: {error}"); }
+        try { await NetworkTests.MembershipReduction(); Console.WriteLine("PASS real provider single-member reduction preserves the remaining transport"); }
+        catch (Exception error) { ++failures; Console.Error.WriteLine($"FAIL real provider single-member reduction: {error}"); }
         try { await NetworkTests.ProviderSmoke(true); Console.WriteLine("PASS real provider copy-only peer diagnostics and persisted ready/CRC observations"); }
         catch (Exception error) { ++failures; Console.Error.WriteLine($"FAIL real peer diagnostics: {error}"); }
         try { await NetworkTests.Lifecycle(); Console.WriteLine("PASS real provider disabled/bind-failure/start-stop lifecycle"); }
         catch (Exception error) { ++failures; Console.Error.WriteLine($"FAIL real provider lifecycle: {error}"); }
         try { await NetworkTests.NegativeControls(); Console.WriteLine("PASS real DTLS negative controls send zero without gate 5 or readiness"); }
         catch (Exception error) { ++failures; Console.Error.WriteLine($"FAIL real negative controls: {error}"); }
-        Console.WriteLine($"Provider contracts: {tests.Length + 5 - failures} passed, {failures} failed.");
+        Console.WriteLine($"Provider contracts: {tests.Length + 6 - failures} passed, {failures} failed.");
         return failures == 0 ? 0 : 1;
     }
 }

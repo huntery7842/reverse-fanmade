@@ -30,6 +30,10 @@ public sealed class SpanishTranslation : TranslationBase
     public override string StopRelayButton => "DETENER RELAY";
     public override string StartRelayTooltip => "Inicia sesión y arranca el relay local.";
     public override string StopRelayTooltip => "Detén el relay local.";
+    public override string DetailedLogsOnButton => "REGISTROS DETALLADOS: ACTIVADOS";
+    public override string DetailedLogsOffButton => "REGISTROS DETALLADOS: DESACTIVADOS";
+    public override string DetailedLogsDescription => "Registra URL, cabeceras, cuerpos, mensajes WebSocket y paquetes de señalización completos, incluidas las credenciales.";
+    public override string DetailedLogsPathLabel => "Carpeta de registros";
     public override string StatusStopped => "Detenido";
     public override string StatusSigningIn => "Iniciando sesión…";
     public override string StatusRunningWaitingForGame => "En ejecución — esperando al juego";

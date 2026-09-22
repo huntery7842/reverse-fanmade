@@ -4,11 +4,13 @@ using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using ReVerse.Capture.Capturing;
 using ReVerse.Capture.Protocol;
+using ReVerse.Capture.Middleware;
+using ReVerse.Traffic;
 
 namespace ReVerse.Capture.Matchmaking;
 
 
-public sealed class NotificationHub(RequestLog log, GameState state)
+public sealed class NotificationHub(RequestLog log, GameState state, DetailedTrafficLog detailed)
 {
     private readonly object gate = new();
     private readonly Dictionary<string, HashSet<Connection>> connections = new(StringComparer.Ordinal);
@@ -30,7 +32,9 @@ public sealed class NotificationHub(RequestLog log, GameState state)
     {
         using var socket = await context.WebSockets.AcceptWebSocketAsync();
         using var peer = new Connection(context.RequestAborted);
-        var writer = WriteAsync(socket, peer, account);
+        var trafficId = context.Items[DetailedTrafficMiddleware.ContextKey] as string ?? Guid.NewGuid().ToString("N");
+        var remoteAddress = context.Connection.RemoteIpAddress?.ToString();
+        var writer = WriteAsync(socket, peer, account, trafficId, remoteAddress);
         var buffer = new byte[8192];
         var assigned = false;
         try
@@ -47,7 +51,13 @@ public sealed class NotificationHub(RequestLog log, GameState state)
                         throw new InvalidDataException("Notification commands must be bounded JSON text.");
                     message.Write(buffer, 0, result.Count);
                 } while (!result.EndOfMessage);
-                var command = JsonNode.Parse(message.ToArray()) as JsonObject
+                var bytes = message.ToArray();
+                detailed.Write("webSocketMessage", new
+                {
+                    id = trafficId, direction = "clientToBackend", account, remoteAddress,
+                    payload = DetailedTrafficLog.Payload(bytes)
+                });
+                var command = JsonNode.Parse(bytes) as JsonObject
                     ?? throw new InvalidDataException("Invalid command.");
                 var name = command["command"]?.GetValue<string>();
                 if (name is "session_assign" or "session_refresh")
@@ -98,13 +108,19 @@ public sealed class NotificationHub(RequestLog log, GameState state)
         }
     }
 
-    private async Task WriteAsync(WebSocket socket, Connection peer, string account)
+    private async Task WriteAsync(WebSocket socket, Connection peer, string account, string trafficId, string? remoteAddress)
     {
         try
         {
             await foreach (var json in peer.Out.Reader.ReadAllAsync(peer.Stop.Token))
             {
-                await socket.SendAsync(System.Text.Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, peer.Stop.Token);
+                var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+                await socket.SendAsync(bytes, WebSocketMessageType.Text, true, peer.Stop.Token);
+                detailed.Write("webSocketMessage", new
+                {
+                    id = trafficId, direction = "backendToClient", account, remoteAddress,
+                    payload = DetailedTrafficLog.Payload(bytes)
+                });
                 await log.WriteAsync(new { type = "matchmakingNotification", timestampUtc = DateTimeOffset.UtcNow, account, body = ProtocolAudit.Redact(JsonNode.Parse(json)) });
             }
         }

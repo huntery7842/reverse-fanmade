@@ -39,6 +39,7 @@ may occur.
 - [Host quick start](QUICKSTART-HOST.md)
 - [Player quick start](QUICKSTART-PLAYER.md)
 - [Complete setup guide](SETUP.md)
+- [AWS EC2 deployment](AWS-DEPLOYMENT.md)
 
 ## AI-assisted help
 
@@ -70,6 +71,23 @@ Download the current packages from the [ReVerse v0.2.0 release](https://github.c
 - `ReVerse-backend-linux-x64.zip`
 - `ReVerseRelay-win-x64.zip`
 - `ReVerseRelay-linux-x64.zip`
+
+## Detailed traffic logs
+
+Click **DETAILED LOGS: OFF** in the desktop relay to turn on full traffic
+logging. The switch takes effect while the relay is running. If the same app
+hosts the backend, it also enables backend logging without restarting it.
+Click the button again to stop new detailed entries. The choice is saved for
+the next app launch.
+
+The relay writes `detailed-traffic-YYYY-MM-DD.jsonl` in a `detailed-logs`
+folder beside the Avalonia executable. A backend hosted from the app writes
+the same filename under its `logs` folder by default. The app shows both
+locations when detailed logging is on. Each entry has a UTC timestamp and
+records its traffic direction. HTTP entries include the full URL, addresses,
+ports, headers, and body chunks. WebSocket and signaling entries include full
+payload bytes as Base64, with readable UTF-8 alongside them when valid.
+These files include credentials and other private data without redaction.
 
 ## License and ownership
 

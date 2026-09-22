@@ -28,6 +28,7 @@ public sealed class SignalingDirectory(SignalingOptions options)
         public bool Active { get; set; }
         public bool Failed { get; set; }
         public bool TopologyPending { get; set; }
+        public HashSet<ushort> RetiredNumbers { get; } = [];
         public List<Peer> Peers { get; } = [];
     }
 
@@ -66,7 +67,7 @@ public sealed class SignalingDirectory(SignalingOptions options)
         lock (gate)
         {
             if (!listening) return false;
-            ValidateMembers(representative, members);
+            ValidateMembers(representative, members, allowSingle: true);
             if (!sessions.TryGetValue(session, out var allocation) || !Valid(allocation)) return false;
             if (allocation.Representative != representative) throw new InvalidDataException("Invalid signaling representative.");
             var requested = members.ToDictionary(member => member.Account, StringComparer.Ordinal);
@@ -78,6 +79,7 @@ public sealed class SignalingDirectory(SignalingOptions options)
             if (identities.Count - removed.Length + added.Length > options.MaxConnections) return false;
             foreach (var peer in removed)
             {
+                allocation.RetiredNumbers.Add(peer.Number);
                 allocation.Peers.Remove(peer);
                 RemovePeer(peer);
             }
@@ -86,6 +88,7 @@ public sealed class SignalingDirectory(SignalingOptions options)
             {
                 var number = Enumerable.Range(1, 10).Select(value => (ushort)value).First(value => !used.Contains(value));
                 used.Add(number);
+                allocation.RetiredNumbers.Remove(number);
                 var peer = new Peer(allocation, member, number);
                 allocation.Peers.Add(peer);
                 identities.Add(peer.Identity, peer);
@@ -259,9 +262,11 @@ public sealed class SignalingDirectory(SignalingOptions options)
         peer.Out.Writer.TryComplete();
     }
 
-    private static void ValidateMembers(string representative, IReadOnlyList<SignalingMember> members)
+    private static void ValidateMembers(string representative, IReadOnlyList<SignalingMember> members, bool allowSingle = false)
     {
-        if (members.Count is < 2 or > 10 || members.Select(m => m.Account).Distinct().Count() != members.Count
+        var minimum = allowSingle ? 1 : 2;
+        if (members.Count < minimum || members.Count > 10
+            || members.Select(m => m.Account).Distinct().Count() != members.Count
             || !members.Any(m => m.Account == representative)) throw new InvalidDataException("Invalid signaling membership.");
     }
 
@@ -289,6 +294,15 @@ public sealed class SignalingDirectory(SignalingOptions options)
     {
         lock (gate)
             return Find(session, account, connection) is { } peer ? Snapshot(peer) : null;
+    }
+
+    public bool IsRetired(string session, string connection, ushort number)
+    {
+        lock (gate)
+        {
+            var allocation = Select(session, connection);
+            return allocation is not null && allocation.RetiredNumbers.Contains(number);
+        }
     }
 
     private bool TryPeer(byte[] identity, out Peer peer)

@@ -10,6 +10,7 @@ public sealed class RelaySettings
     public string BackendFolder { get; set; } = "";
     public int BackendPlayers { get; set; } = 2;
     public string LanguageCode { get; set; } = "en";
+    public bool DetailedLogsEnabled { get; set; }
     [JsonIgnore]
     public string SecretKey { get; set; } = "";
 
@@ -30,6 +31,10 @@ public sealed class RelaySettings
 
     public static string DataDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ReVerseRelay");
+
+    public static string DetailedLogsControlFile => Path.Combine(DataDirectory, "detailed-logs.enabled");
+
+    public static string DetailedLogsDirectory => Path.Combine(AppContext.BaseDirectory, "detailed-logs");
 
     public static RelaySettings Load()
     {

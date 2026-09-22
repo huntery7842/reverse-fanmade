@@ -1,5 +1,6 @@
 """Private room creation, admission and lifecycle contracts."""
 import json
+import socket
 import string
 import time
 from matchmaking_flow import Harness, ticket, event, offer, join_body
@@ -156,6 +157,93 @@ def lifecycle():
         h.close()
 
 
+def kick_member():
+    h = Harness(extra_env={'Matchmaking__JoinLifetimeSeconds': '30'})
+    try:
+        host, guest, target = [h.account(name) for name in ('kick-host', 'kick-guest', 'kick-target')]
+        wh, wg, wt = [h.connect(account) for account in (host, guest, target)]
+        info = h.request('POST', '/v1/gameSession', host, create_body(host, capacity=4))['gameSessions'][0]
+        event(wh, 'players:created')
+        headers = {'X-Be-Session-Id': info['sessionId'], 'X-Be-Session-Keyword': info['keyword']}
+
+        h.request('POST', '/v1/gameSession/member/players', guest, join_body(guest), headers=headers)
+        event(wh, 'players:created'); event(wg, 'players:created')
+        h.request('POST', '/v1/gameSession/member/players', target, join_body(target), headers=headers)
+        event(wh, 'players:created'); event(wg, 'players:created'); event(wt, 'players:created')
+
+        h.request('DELETE', '/v1/gameSession/members', host,
+                  headers={**headers, 'X-Be-Account-Id': target['id']})
+        deleted = [event(ws, 'players:deleted') for ws in (wh, wg, wt)]
+        for message in deleted:
+            player = message['data']['data']['member']['players'][0]
+            assert player['accountId'] == target['id']
+            assert player['joinState'] == 'CLIENT_KILLED', message
+
+        records = [json.loads(line) for file in h.folder.glob('requests-*.jsonl')
+                    for line in file.read_text(encoding='utf-8').splitlines()]
+        assert any(record.get('method') == 'DELETE' and record.get('path') == '/v1/gameSession/members'
+                   and record.get('reason') == '' for record in records), records
+
+        snapshot = h.request('GET', '/v1/gameSession', host,
+                             headers={'X-Be-Session-Ids': info['sessionId']})['gameSessions'][0]
+        assert {player['accountId'] for player in snapshot['member']['players']} == {host['id'], guest['id']}
+        print('PASS host-directed private member removal is a kick and preserves the remaining room')
+    finally:
+        h.close()
+
+
+def kick_last_member():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.bind(('127.0.0.1', 0))
+        signaling_port = probe.getsockname()[1]
+    h = Harness(extra_env={
+        'Matchmaking__JoinLifetimeSeconds': '30',
+        'Signaling__Enabled': 'true',
+        'Signaling__BindAddress': '127.0.0.1',
+        'Signaling__Port': str(signaling_port),
+        'Signaling__PublicHost': '127.0.0.1',
+        'Signaling__PublicPort': str(signaling_port)
+    })
+    try:
+        host, guest = h.account('last-kick-host'), h.account('last-kick-guest')
+        wh, wg = h.connect(host), h.connect(guest)
+        info = h.request('POST', '/v1/gameSession', host, create_body(host, capacity=2))['gameSessions'][0]
+        event(wh, 'players:created')
+        headers = {'X-Be-Session-Id': info['sessionId'], 'X-Be-Session-Keyword': info['keyword']}
+
+        h.request('POST', '/v1/gameSession/member/players', guest, join_body(guest), headers=headers)
+        event(wh, 'players:created'); event(wg, 'players:created')
+        h.request('PATCH', '/v1/gameSession/signaling', host,
+                  {'signalingTimeoutSeconds': 30}, headers={'X-Be-Session-Id': info['sessionId']})
+        event(wh, 'signaling:created'); event(wg, 'signaling:created')
+
+        h.request('DELETE', '/v1/gameSession/members', host,
+                  headers={**headers, 'X-Be-Account-Id': guest['id']})
+        for ws in (wh, wg):
+            message = event(ws, 'players:deleted')
+            player = message['data']['data']['member']['players'][0]
+            assert player['accountId'] == guest['id']
+            assert player['joinState'] == 'CLIENT_KILLED', message
+
+        snapshot = h.request('GET', '/v1/gameSession', host,
+                             headers={'X-Be-Session-Ids': info['sessionId']})['gameSessions'][0]
+        assert [player['accountId'] for player in snapshot['member']['players']] == [host['id']]
+        assert snapshot['signaling'] == 'COMPLETED', snapshot
+        h.request('GET', '/v1/gameSession', guest,
+                  headers={'X-Be-Session-Ids': info['sessionId']}, expected=404)
+        h.request('POST', '/v1/gameSession/member/players', guest, join_body(guest), headers=headers)
+        event(wh, 'players:created'); event(wg, 'players:created')
+        event(wh, 'operateSequenceNo'); event(wg, 'signaling:created')
+        snapshot = h.request('GET', '/v1/gameSession', host,
+                             headers={'X-Be-Session-Ids': info['sessionId']})['gameSessions'][0]
+        assert {player['accountId'] for player in snapshot['member']['players']} == {host['id'], guest['id']}
+        print('PASS two-player kick preserves the remaining host session')
+    finally:
+        h.close()
+
+
 if __name__ == '__main__':
     main()
     lifecycle()
+    kick_member()
+    kick_last_member()

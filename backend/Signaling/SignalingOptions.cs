@@ -14,6 +14,7 @@ public sealed class SignalingOptions
     public int HandshakeTimeoutSeconds { get; set; } = 10;
     public int IdleTimeoutSeconds { get; set; } = 90;
     public int MaxSessionSeconds { get; set; } = 7200;
+    public TimeSpan CloseGracePeriod { get; set; } = TimeSpan.FromSeconds(3);
 
     public bool ExperimentalReplies { get; set; }
     public uint? Reply19 { get; set; }
@@ -35,6 +36,8 @@ public sealed class SignalingOptions
         if (MaxConnections is < 2 or > 128 || HandshakeTimeoutSeconds is < 1 or > 30
             || IdleTimeoutSeconds is < 5 or > 600 || MaxSessionSeconds is < 60 or > 86400)
             throw new ArgumentException("Invalid signaling resource/lifetime limits.");
+        if (CloseGracePeriod < TimeSpan.Zero || CloseGracePeriod > TimeSpan.FromSeconds(30))
+            throw new ArgumentException("Signaling:CloseGracePeriod must be 0..30 seconds.");
         if (ExperimentalReplies && (Reply19 is null or 0 || Reply21 is null or 0
             || (RegistrationFieldB is null) == !RegistrationFieldBIsPeerNumber))
             throw new ArgumentException("Experimental signaling requires nonzero Reply19/Reply21 and exactly one of RegistrationFieldB or RegistrationFieldBIsPeerNumber.");

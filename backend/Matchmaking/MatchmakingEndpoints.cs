@@ -34,6 +34,7 @@ public sealed class MatchmakingEndpoints(MatchmakingCoordinator coordinator, Gam
         JsonObject? request = null;
         JsonObject response;
         var status = 200;
+        var reason = "";
         try
         {
             var feature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
@@ -59,8 +60,11 @@ public sealed class MatchmakingEndpoints(MatchmakingCoordinator coordinator, Gam
                 var ids = Header(context, path == "/v1/gameSession" && method == "GET" ? "X-Be-Session-Ids" : "X-Be-Session-Id")
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                 if (ids.Length > 10) throw MatchmakingCoordinator.Error(400, "Too many session IDs.");
+                var reasons = context.Request.Query["reason"];
+                if (reasons.Count > 1) throw MatchmakingCoordinator.Error(400, "Duplicate reason query parameter.");
+                reason = reasons.ToString();
                 response = coordinator.SessionRequest(account, identity.Nickname, path, method, ids, Header(context, "X-Be-Account-Id"), request, read,
-                    Header(context, "X-Be-Session-Keyword"));
+                    Header(context, "X-Be-Session-Keyword"), reason);
             }
             else throw MatchmakingCoordinator.Error(404, "Unknown matchmaking route.");
         }
@@ -78,7 +82,7 @@ public sealed class MatchmakingEndpoints(MatchmakingCoordinator coordinator, Gam
             type = "matchmakingRequest", timestampUtc = DateTimeOffset.UtcNow, account, method, path,
             sessionRead = path == "/v1/gameSession" && method == "GET" ? GameSessionRead.Audit(context.Request) : null,
             request = ProtocolAudit.Redact(request), responseStatusCode = status, response = ProtocolAudit.Redact(response),
-            responseSource = "matchmaking"
+            responseSource = "matchmaking", reason
         });
         await context.Response.Body.WriteAsync(payload, context.RequestAborted);
     }

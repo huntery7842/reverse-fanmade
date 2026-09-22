@@ -221,6 +221,70 @@ internal static class DirectoryTests
             && current.Peers.Count == 3, "expanded topology did not preserve the active allocation");
     }
 
+    internal static void MembershipRefresh()
+    {
+        using var room = new Room();
+        room.Ready();
+        var aliceIdentity = room.Credentials["alice"].Identity;
+        var carolIdentity = room.Credentials["carol"].Identity;
+        var bobIdentity = room.Credentials["bob"].Identity;
+        var members = new[] { new SignalingMember("carol", 0x10203040), new SignalingMember("alice", 0x01020304) };
+
+        Assert.That(room.Directory.Replace(Room.Session, "carol", members, DateTimeOffset.UtcNow.AddMinutes(1)),
+            "active membership replacement rejected");
+        Assert.That(room.Directory.Descriptor(Room.Session, "bob") is null
+            && room.Directory.LookupPsk(room.Credentials["bob"].IdentityBytes) is null
+            && !room.Directory.IsAttached(Room.Session, "bob", Room.Connection("bob")),
+            "removed member credentials remained usable");
+        Assert.That(Credential.From(room.Directory.Descriptor(Room.Session, "alice")!).Identity == aliceIdentity
+            && Credential.From(room.Directory.Descriptor(Room.Session, "carol")!).Identity == carolIdentity
+            && bobIdentity != aliceIdentity && bobIdentity != carolIdentity,
+            "remaining member credentials rotated during removal");
+        Assert.That(room.Directory.IsActive(Room.Session)
+            && room.Directory.AllRegistered(Room.Session, Room.Connection("alice")),
+            "remaining members lost the active registration state");
+
+        var stale = Bytes.Block(0x01020304, 0xaabbccdd);
+        room.Conversations["alice"].Application(4, 1, 0x10, Bytes.Route([2], stale));
+        Assert.That(room.PayloadAudits[^1].Outcome == "stale_topology_dropped" && room.Take("carol") is null,
+            "in-flight route to a kicked member closed or delivered unexpectedly");
+
+        var current = Bytes.Block(0x01020304, 0x10203040);
+        room.Conversations["alice"].Application(4, 1, 0x10, Bytes.Route([3], current));
+        Assert.That(room.Take("carol") is not null, "remaining member could not receive after removal");
+        room.Empty();
+    }
+
+    internal static void MembershipReductionToSingle()
+    {
+        using var room = new Room();
+        room.Ready();
+        var carol = room.Credentials["carol"];
+        var alice = room.Credentials["alice"];
+        var bob = room.Credentials["bob"];
+        var members = new[] { new SignalingMember("carol", 0x10203040) };
+
+        Assert.That(room.Directory.Replace(Room.Session, "carol", members, DateTimeOffset.UtcNow.AddMinutes(1)),
+            "single-member membership replacement rejected");
+        var current = Assert.NotNull(room.Directory.Current(Room.Session, "carol", Room.Connection("carol")),
+            "remaining member lost its signaling attachment");
+        Assert.That(room.Directory.IsActive(Room.Session) && room.Directory.AllRegistered(Room.Session, Room.Connection("carol"))
+            && current.Peers.Count == 1 && current.Peers[0].Account == "carol",
+            "remaining member lost the active provider allocation");
+        Assert.That(room.Directory.LookupPsk(carol.IdentityBytes) is not null
+            && room.Directory.LookupPsk(alice.IdentityBytes) is null
+            && room.Directory.LookupPsk(bob.IdentityBytes) is null
+            && room.Directory.IsRetired(Room.Session, Room.Connection("carol"), 1)
+            && room.Directory.IsRetired(Room.Session, Room.Connection("carol"), 2),
+            "removed member credentials or route numbers remained active");
+
+        room.Conversations["carol"].Application(4, 1, 0x10,
+            Bytes.Route([1], Bytes.Block(0x10203040, 0x01020304)));
+        Assert.That(room.PayloadAudits[^1].Outcome == "stale_topology_dropped" && room.Take("carol") is null,
+            "remaining member did not drop a route to a removed peer");
+        room.Empty();
+    }
+
     internal static async Task Deadline()
     {
         var directory = new SignalingDirectory(Room.NewOptions());

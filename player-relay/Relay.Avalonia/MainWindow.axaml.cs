@@ -112,6 +112,7 @@ public sealed partial class MainWindow : Window
         CopyButton.Content = launchOptionsCopied ? text.CopiedButton : text.CopyButton;
         ToggleButton.Content = service is null ? text.StartRelayButton : text.StopRelayButton;
         ToolTip.SetTip(ToggleButton, service is null ? text.StartRelayTooltip : text.StopRelayTooltip);
+        RenderDetailedLogs();
         RelayPortsText.Text = text.RelayPorts;
         PleaseWaitText.Text = text.PleaseWait;
 
@@ -198,6 +199,51 @@ public sealed partial class MainWindow : Window
         await ToggleAsync();
     }
 
+    private void OnDetailedLogsClicked(object? sender, RoutedEventArgs e)
+    {
+        var previous = settings.DetailedLogsEnabled;
+        try
+        {
+            var enabled = !previous;
+            SetDetailedLogsMarker(enabled);
+            settings.DetailedLogsEnabled = enabled;
+            settings.Save();
+            if (service is not null) service.DetailedLogsEnabled = enabled;
+            RenderDetailedLogs();
+            HideError();
+        }
+        catch (Exception exception)
+        {
+            settings.DetailedLogsEnabled = previous;
+            try { SetDetailedLogsMarker(previous); } catch { }
+            ShowError(exception);
+        }
+    }
+
+    private void RenderDetailedLogs()
+    {
+        var text = localization.Current;
+        DetailedLogsButton.Content = settings.DetailedLogsEnabled ? text.DetailedLogsOnButton : text.DetailedLogsOffButton;
+        DetailedLogsDescriptionText.Text = text.DetailedLogsDescription;
+        DetailedLogsPathText.IsVisible = settings.DetailedLogsEnabled;
+        var paths = $"{text.DetailedLogsPathLabel}: {RelaySettings.DetailedLogsDirectory}";
+        var folder = HostFolderEntry.Text?.Trim().Trim('"');
+        if (!string.IsNullOrWhiteSpace(folder) && Directory.Exists(folder))
+            paths += $"\n{text.BackendHostTitle}: {Path.Combine(Path.GetFullPath(folder), "logs")}";
+        DetailedLogsPathText.Text = paths;
+    }
+
+    private static void SetDetailedLogsMarker(bool enabled)
+    {
+        var marker = RelaySettings.DetailedLogsControlFile;
+        if (enabled)
+        {
+            Directory.CreateDirectory(RelaySettings.DataDirectory);
+            File.WriteAllText(marker, DateTimeOffset.UtcNow.ToString("O"));
+        }
+        else if (File.Exists(marker)) File.Delete(marker);
+    }
+
     private async void OnBackendKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && service is null)
@@ -230,11 +276,16 @@ public sealed partial class MainWindow : Window
             SetStatus(RelayStatus.SigningIn);
 
             var current = new RelayService();
+            current.DetailedLogsEnabled = settings.DetailedLogsEnabled;
             service = current;
             current.StatusChanged += status => Dispatcher.UIThread.Post(() =>
             {
                 if (ReferenceEquals(service, current))
                     SetStatus(status);
+            });
+            current.DetailedLogError += exception => Dispatcher.UIThread.Post(() =>
+            {
+                if (ReferenceEquals(service, current)) ShowError(exception);
             });
             await current.StartAsync(settings);
             ToggleButton.Content = localization.Current.StopRelayButton;
@@ -346,6 +397,7 @@ public sealed partial class MainWindow : Window
             RenderZeroTierStatus();
         }
         UpdateHostCommand();
+        RenderDetailedLogs();
     }
 
     private void OnPlayerCountChanged(object? sender, NumericUpDownValueChangedEventArgs e)
@@ -525,6 +577,7 @@ public sealed partial class MainWindow : Window
             settings.BackendAddress = backendUrl;
             settings.BackendPlayers = decimal.ToInt32(PlayersEntry.Value ?? 2);
             settings.Save();
+            SetDetailedLogsMarker(settings.DetailedLogsEnabled);
             backendHost.Start(folder, command);
             BackendEntry.Text = backendUrl;
             SetBackendStatus(BackendStatus.Running);

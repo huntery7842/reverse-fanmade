@@ -135,8 +135,13 @@ public sealed class SignalingConversation(SignalingOptions options, SignalingDir
     {
         if (!directory.IsActive(peer.Session) && !directory.AllRegistered(peer.Session, connection))
             throw new WireFormatException("Peer set is not registered.");
-        var current = directory.Current(peer.Session, peer.Account, connection)
-            ?? throw new WireFormatException("Signaling membership is unavailable.");
+        var current = directory.Current(peer.Session, peer.Account, connection);
+        if (current is null)
+        {
+            audit = audit with { Outcome = "membership_unavailable_dropped" };
+            stage("membership_unavailable_dropped");
+            return;
+        }
         var input = new WireReader(body, ushort.MaxValue);
         var count = input.ReadUInt16();
         audit = audit with { DestinationCount = count };
@@ -171,8 +176,17 @@ public sealed class SignalingConversation(SignalingOptions options, SignalingDir
             audit = audit with { PeerPrimary = PeerPrimaryDiagnostics.Inspect(primary.Span, senderNonce, destinationNonce) };
         if (senderNonce != current.Nonce) throw new WireFormatException("Sender nonce does not match the authenticated membership.");
 
-        var targets = destinations.Select(number => current.Peers.SingleOrDefault(p => p.Number == number)
-            ?? throw new WireFormatException("Destination outside authenticated session.")).ToArray();
+        var stale = destinations.Where(number => current.Peers.All(p => p.Number != number)).ToArray();
+        if (stale.Any(number => !directory.IsRetired(peer.Session, connection, number)))
+            throw new WireFormatException("Destination outside authenticated session.");
+        var targets = destinations.Select(number => current.Peers.SingleOrDefault(p => p.Number == number))
+            .Where(target => target is not null).Cast<SignalingPeerInfo>().ToArray();
+        if (targets.Length == 0)
+        {
+            audit = audit with { Outcome = "stale_topology_dropped" };
+            stage("stale_topology_payload_dropped");
+            return;
+        }
         if (targets.Any(target => target.Account == current.Account || target.Nonce != destinationNonce))
             throw new WireFormatException("Destination nonce or route mismatch.");
         var output = new WireWriter(ushort.MaxValue);

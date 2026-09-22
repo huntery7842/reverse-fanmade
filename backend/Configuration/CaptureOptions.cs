@@ -3,6 +3,7 @@ namespace ReVerse.Capture.Configuration;
 public sealed class CaptureOptions
 {
     public string LogDirectory { get; set; } = "logs";
+    public string DetailedLogsControlFile { get; set; } = "detailed-logs.enabled";
     public int MaxCapturedBodyBytes { get; set; } = 1024 * 1024;
     public bool RedactSensitiveHeaders { get; set; } = true;
     public int ResponseStatusCode { get; set; } = 200;
@@ -15,8 +16,9 @@ public sealed class CaptureOptions
             throw new ArgumentException("Capture:MaxCapturedBodyBytes must be between 0 and 67108864 bytes.");
         if (ResponseStatusCode is < 200 or > 599)
             throw new ArgumentException("Capture:ResponseStatusCode must be between 200 and 599.");
-        if (string.IsNullOrWhiteSpace(LogDirectory) || string.IsNullOrWhiteSpace(ResponseContentType))
-            throw new ArgumentException("Capture:LogDirectory and Capture:ResponseContentType cannot be blank.");
+        if (string.IsNullOrWhiteSpace(LogDirectory) || string.IsNullOrWhiteSpace(ResponseContentType)
+            || string.IsNullOrWhiteSpace(DetailedLogsControlFile))
+            throw new ArgumentException("Capture:LogDirectory, Capture:DetailedLogsControlFile and Capture:ResponseContentType cannot be blank.");
     }
 
     public static bool IsSensitiveHeader(string name) =>

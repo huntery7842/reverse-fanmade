@@ -6,4 +6,5 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /></ItemGroup>
+  <ItemGroup><Compile Include="../../traffic/DetailedTrafficLog.cs" Link="Traffic/DetailedTrafficLog.cs" /></ItemGroup>
 </Project>

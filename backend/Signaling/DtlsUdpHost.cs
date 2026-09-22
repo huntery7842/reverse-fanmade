@@ -30,6 +30,7 @@ public sealed class DtlsUdpHost : IAsyncDisposable
     private readonly Func<byte[], byte[]?> lookupPsk;
     private readonly Action<byte[], DtlsTransport, CancellationToken> connected;
     private readonly Action<string>? stageLog;
+    private readonly Action<string, IPEndPoint, ReadOnlyMemory<byte>>? datagramLog;
     private readonly CancellationTokenSource stopping = new();
     private readonly Dictionary<IPEndPoint, Peer> peers = new();
     private Socket? socket;
@@ -49,7 +50,8 @@ public sealed class DtlsUdpHost : IAsyncDisposable
         Action<string>? stageLog = null,
         int queueCapacity = 32,
         int maxDatagramBytes = 2048,
-        int shutdownTimeoutSeconds = 5)
+        int shutdownTimeoutSeconds = 5,
+        Action<string, IPEndPoint, ReadOnlyMemory<byte>>? datagramLog = null)
     {
         ArgumentNullException.ThrowIfNull(bindAddress);
         ArgumentNullException.ThrowIfNull(lookupPsk);
@@ -77,6 +79,7 @@ public sealed class DtlsUdpHost : IAsyncDisposable
         this.lookupPsk = lookupPsk;
         this.connected = connected;
         this.stageLog = stageLog;
+        this.datagramLog = datagramLog;
         this.queueCapacity = queueCapacity;
         this.maxDatagramBytes = maxDatagramBytes;
         shutdownTimeout = TimeSpan.FromSeconds(shutdownTimeoutSeconds);
@@ -221,6 +224,7 @@ public sealed class DtlsUdpHost : IAsyncDisposable
                 continue;
 
             var endPoint = (IPEndPoint)remote;
+            datagramLog?.Invoke("clientToBackend", endPoint, buffer.AsMemory(0, received).ToArray());
             Peer? existing;
             lock (gate) peers.TryGetValue(endPoint, out existing);
             if (existing is not null)
@@ -247,7 +251,7 @@ public sealed class DtlsUdpHost : IAsyncDisposable
                 verifierCreated = Stopwatch.GetTimestamp();
             }
 
-            var sender = new CookieSender(listener, endPoint, received);
+            var sender = new CookieSender(listener, endPoint, received, datagramLog);
             DtlsRequest? request = verifier.VerifyRequest(EndpointCookieId(endPoint), buffer, 0, received, sender);
             if (sender.Sent) ++cookieReplies;
             if (request is null)
@@ -256,7 +260,7 @@ public sealed class DtlsUdpHost : IAsyncDisposable
             lock (gate)
             {
                 if (stopRequested) break;
-                var peer = new Peer(new DtlsDatagramTransport(listener, endPoint, queueCapacity, maxDatagramBytes));
+                var peer = new Peer(new DtlsDatagramTransport(listener, endPoint, queueCapacity, maxDatagramBytes, datagramLog));
                 peers.Add(endPoint, peer);
                 peer.Worker = Task.Factory.StartNew(
                     () => Serve(peer, request), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -429,7 +433,8 @@ public sealed class DtlsUdpHost : IAsyncDisposable
         internal bool Authenticated { get; set; }
     }
 
-    private sealed class CookieSender(Socket listener, IPEndPoint remote, int requestBytes) : DatagramSender
+    private sealed class CookieSender(Socket listener, IPEndPoint remote, int requestBytes,
+        Action<string, IPEndPoint, ReadOnlyMemory<byte>>? datagramLog) : DatagramSender
     {
         internal bool Sent { get; private set; }
         public int GetSendLimit() => requestBytes;
@@ -442,6 +447,7 @@ public sealed class DtlsUdpHost : IAsyncDisposable
             try
             {
                 listener.SendTo(buffer, SocketFlags.None, remote);
+                datagramLog?.Invoke("backendToClient", remote, buffer.ToArray());
             }
             catch (SocketException)
             {

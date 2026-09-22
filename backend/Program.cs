@@ -8,6 +8,7 @@ using ReVerse.Capture.Protocol;
 using ReVerse.Capture.Persistence;
 using ReVerse.Capture.Matchmaking;
 using ReVerse.Capture.Signaling;
+using ReVerse.Traffic;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +34,9 @@ steam.Validate();
 builder.Services.AddSingleton(capture);
 builder.Services.AddSingleton(steam);
 builder.Services.AddSingleton(new RequestLog(Path.GetFullPath(capture.LogDirectory, builder.Environment.ContentRootPath)));
+builder.Services.AddSingleton(new DetailedTrafficLog(
+    Path.GetFullPath(capture.LogDirectory, builder.Environment.ContentRootPath),
+    () => File.Exists(Path.GetFullPath(capture.DetailedLogsControlFile, builder.Environment.ContentRootPath))));
 builder.Services.AddSingleton(_ =>
 {
     var overrides = new ResponseOverrides(
@@ -76,7 +80,10 @@ builder.Services.AddSingleton<DynamicRoutes>();
 builder.Services.AddSingleton<ProtocolMiddleware>();
 
 var app = builder.Build();
+app.Services.GetRequiredService<DetailedTrafficLog>().Failed += exception =>
+    app.Logger.LogError(exception, "Detailed traffic logging failed");
 app.UseWebSockets();
+app.UseMiddleware<DetailedTrafficMiddleware>();
 app.Use(async (context, next) =>
 {
     try

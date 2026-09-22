@@ -30,6 +30,10 @@ public sealed class ChineseTranslation : TranslationBase
     public override string StopRelayButton => "停止中继";
     public override string StartRelayTooltip => "登录并启动本地中继。";
     public override string StopRelayTooltip => "停止本地中继。";
+    public override string DetailedLogsOnButton => "详细日志：已开启";
+    public override string DetailedLogsOffButton => "详细日志：已关闭";
+    public override string DetailedLogsDescription => "记录完整网址、标头、正文、WebSocket 消息和信令数据包，包括登录凭据。";
+    public override string DetailedLogsPathLabel => "日志文件夹";
     public override string StatusStopped => "已停止";
     public override string StatusSigningIn => "正在登录…";
     public override string StatusRunningWaitingForGame => "运行中 — 等待游戏";

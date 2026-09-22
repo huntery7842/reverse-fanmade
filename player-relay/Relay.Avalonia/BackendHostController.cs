@@ -180,13 +180,15 @@ public static partial class ZeroTierHost
             "Signaling__Reply21=1",
             "Signaling__RegistrationFieldBIsPeerNumber=true"
         };
+        var controlSetting = $"Capture__DetailedLogsControlFile={RelaySettings.DetailedLogsControlFile}";
         return OperatingSystem.IsWindows()
-            ? string.Join(" && ", settings.Select(setting => $"set \"{setting}\"")) +
+            ? string.Join(" && ", settings.Append(controlSetting).Select(setting => $"set \"{setting}\"")) +
               $" && \"{Path.Combine(folder, BackendEntryName)}\""
             : string.Join(' ',
             [
                 "env",
                 .. settings,
+                $"'{controlSetting.Replace("'", "'\\''", StringComparison.Ordinal)}'",
                 $"./{BackendEntryName}"
             ]);
     }

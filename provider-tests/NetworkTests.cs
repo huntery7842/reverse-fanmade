@@ -7,6 +7,7 @@ using Org.BouncyCastle.Tls;
 using Org.BouncyCastle.Tls.Crypto.Impl.BC;
 using ReVerse.Capture.Capturing;
 using ReVerse.Capture.Signaling;
+using ReVerse.Traffic;
 
 namespace Provider.Tests;
 
@@ -32,7 +33,8 @@ internal static class NetworkTests
         var directory = new SignalingDirectory(options);
         var folder = Artifacts();
         using var log = new RequestLog(folder);
-        using var provider = new SignalingProvider(options, directory, log, NullLogger<SignalingProvider>.Instance);
+        using var detailed = new DetailedTrafficLog(folder);
+        using var provider = new SignalingProvider(options, directory, log, detailed, NullLogger<SignalingProvider>.Instance);
         var endpoint = new IPEndPoint(IPAddress.Loopback, options.Port);
         var credentials = new List<Credential>();
         try
@@ -138,6 +140,57 @@ internal static class NetworkTests
                 Assert.That(!logs.Contains(privateValue, StringComparison.Ordinal), "real provider leaked credentials in metadata logs");
     }
 
+    internal static async Task MembershipReduction()
+    {
+        const string session = "single-member-room";
+        var options = Room.NewOptions();
+        options.Port = options.PublicPort = FreePort();
+        options.HandshakeTimeoutSeconds = 2;
+        options.Validate();
+        var directory = new SignalingDirectory(options);
+        var folder = Artifacts();
+        using var log = new RequestLog(folder);
+        using var detailed = new DetailedTrafficLog(folder);
+        using var provider = new SignalingProvider(options, directory, log, detailed, NullLogger<SignalingProvider>.Instance);
+        var endpoint = new IPEndPoint(IPAddress.Loopback, options.Port);
+        try
+        {
+            await provider.StartAsync(CancellationToken.None);
+            Assert.That(directory.Allocate(session, "bob",
+                [new("bob", 0xaabbccdd), new("alice", 0x01020304)], DateTimeOffset.UtcNow.AddSeconds(30)),
+                "single-member fixture allocation");
+            var aliceCredential = Credential.From(directory.Descriptor(session, "alice")!);
+            var bobCredential = Credential.From(directory.Descriptor(session, "bob")!);
+            using var alice = new ProviderPeer(endpoint, aliceCredential);
+            using var bob = new ProviderPeer(endpoint, bobCredential);
+            alice.Startup();
+            bob.Startup();
+            alice.SendApplication(1, 1, 1, Bytes.Sized(aliceCredential.SecretBytes));
+            Assert.That(alice.Application() is { Family: 1, Operation: 1, Qualifier: 2 }, "single-member alice registration reply");
+            bob.SendApplication(1, 1, 1, Bytes.Sized(bobCredential.SecretBytes));
+            Assert.That(bob.Application() is { Family: 1, Operation: 1, Qualifier: 2 }, "single-member bob registration reply");
+            Assert.That(alice.Application() is { Family: 3, Operation: 7, Qualifier: 0x10 }
+                && bob.Application() is { Family: 3, Operation: 7, Qualifier: 0x10 }, "single-member readiness");
+            Assert.That(directory.Replace(session, "bob", [new("bob", 0xaabbccdd)], DateTimeOffset.UtcNow.AddSeconds(30)),
+                "single-member live replacement");
+            bob.SendApplication(4, 1, 0x10, Bytes.Route([1], Bytes.Block(0xaabbccdd, 0x01020304)));
+            bob.NoApplication(TimeSpan.FromMilliseconds(350));
+            Assert.That(directory.IsAlive(session) && directory.IsActive(session)
+                && directory.LookupPsk(bobCredential.IdentityBytes) is not null,
+                "remaining provider transport was revoked");
+        }
+        finally
+        {
+            directory.Remove(session);
+            await provider.StopAsync(CancellationToken.None);
+        }
+        var records = System.IO.Directory.GetFiles(folder, "*.jsonl").SelectMany(File.ReadAllLines)
+            .Select(line => JsonNode.Parse(line)!).ToArray();
+        Assert.That(records.Any(r => r["stage"]?.GetValue<string>() == "peer_payload_observed"
+            && r["details"]!["payload"]!["outcome"]?.GetValue<string>() == "stale_topology_dropped"),
+            "single-member stale route was not audited");
+    }
+
     internal static async Task Lifecycle()
     {
         using var occupied = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -147,15 +200,17 @@ internal static class NetworkTests
         options.Port = options.PublicPort = ((IPEndPoint)occupied.LocalEndPoint!).Port;
         options.Enabled = false;
         var directory = new SignalingDirectory(options);
-        using var log = new RequestLog(Artifacts());
-        using (var disabled = new SignalingProvider(options, directory, log, NullLogger<SignalingProvider>.Instance))
+        var folder = Artifacts();
+        using var log = new RequestLog(folder);
+        using var detailed = new DetailedTrafficLog(folder);
+        using (var disabled = new SignalingProvider(options, directory, log, detailed, NullLogger<SignalingProvider>.Instance))
         {
             await disabled.StartAsync(CancellationToken.None);
             Assert.That(!directory.IsListening && !directory.Allocate("disabled", "carol", Room.Members, DateTimeOffset.UtcNow.AddMinutes(1)), "disabled provider advertised readiness");
             await disabled.StopAsync(CancellationToken.None);
         }
         options.Enabled = true;
-        using var failed = new SignalingProvider(options, directory, log, NullLogger<SignalingProvider>.Instance);
+        using var failed = new SignalingProvider(options, directory, log, detailed, NullLogger<SignalingProvider>.Instance);
         var rejected = false;
         try { await failed.StartAsync(CancellationToken.None); }
         catch (DtlsHostException) { rejected = true; }
@@ -174,7 +229,8 @@ internal static class NetworkTests
             var directory = new SignalingDirectory(options);
             var folder = Artifacts();
             using var log = new RequestLog(folder);
-            using var provider = new SignalingProvider(options, directory, log, NullLogger<SignalingProvider>.Instance);
+            using var detailed = new DetailedTrafficLog(folder);
+            using var provider = new SignalingProvider(options, directory, log, detailed, NullLogger<SignalingProvider>.Instance);
             try
             {
                 await provider.StartAsync(CancellationToken.None);

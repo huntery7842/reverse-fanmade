@@ -6,6 +6,7 @@ using ReVerse.Capture.Capturing;
 using ReVerse.Capture.Configuration;
 using ReVerse.Capture.Protocol;
 using ReVerse.Capture.Matchmaking;
+using ReVerse.Traffic;
 
 namespace ReVerse.Capture.Middleware;
 
@@ -21,6 +22,7 @@ public sealed class ProtocolMiddleware(
     ResponseOverrides overrides,
     ContractOverrides contract,
     DynamicRoutes routes,
+    DetailedTrafficLog detailed,
     ILogger<ProtocolMiddleware> logger)
 {
     public async Task Invoke(HttpContext context)
@@ -131,6 +133,7 @@ public sealed class ProtocolMiddleware(
     private async Task HandleWebSocketAsync(HttpContext context)
     {
         var correlationId = Guid.NewGuid().ToString("N");
+        var trafficId = context.Items[DetailedTrafficMiddleware.ContextKey] as string ?? correlationId;
         context.Response.Headers["X-Capture-Id"] = correlationId;
         var receivedAt = DateTimeOffset.UtcNow;
 
@@ -176,6 +179,13 @@ public sealed class ProtocolMiddleware(
             while (socket.State == WebSocketState.Open)
             {
                 var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), context.RequestAborted);
+                detailed.Write("webSocketFrame", new
+                {
+                    id = trafficId, direction = "clientToBackend", remoteAddress = context.Connection.RemoteIpAddress?.ToString(),
+                    path = context.Request.Path.Value, messageType = result.MessageType.ToString(), result.EndOfMessage,
+                    closeStatus = result.CloseStatus?.ToString(), result.CloseStatusDescription,
+                    payload = DetailedTrafficLog.Payload(buffer.AsSpan(0, result.Count))
+                });
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
                     await log.WriteAsync(new
@@ -229,11 +239,23 @@ public sealed class ProtocolMiddleware(
 
                     await socket.SendAsync(new ArraySegment<byte>(buffer, 0, result.Count),
                         result.MessageType, result.EndOfMessage, context.RequestAborted);
+                    detailed.Write("webSocketFrame", new
+                    {
+                        id = trafficId, direction = "backendToClient", remoteAddress = context.Connection.RemoteIpAddress?.ToString(),
+                        path = context.Request.Path.Value, messageType = result.MessageType.ToString(), result.EndOfMessage,
+                        payload = DetailedTrafficLog.Payload(buffer.AsSpan(0, result.Count))
+                    });
                 }
                 else if (result.MessageType == WebSocketMessageType.Binary)
                 {
                     await socket.SendAsync(new ArraySegment<byte>(buffer, 0, result.Count),
                         result.MessageType, result.EndOfMessage, context.RequestAborted);
+                    detailed.Write("webSocketFrame", new
+                    {
+                        id = trafficId, direction = "backendToClient", remoteAddress = context.Connection.RemoteIpAddress?.ToString(),
+                        path = context.Request.Path.Value, messageType = result.MessageType.ToString(), result.EndOfMessage,
+                        payload = DetailedTrafficLog.Payload(buffer.AsSpan(0, result.Count))
+                    });
                 }
 
                 if (result.EndOfMessage)
@@ -252,7 +274,7 @@ public sealed class ProtocolMiddleware(
                     if (result.MessageType == WebSocketMessageType.Text)
                         await TrySendCommandAckAsync(socket,
                             commandPrefix, commandPrefixLength,
-                            context.RequestAborted, correlationId);
+                            context.RequestAborted, correlationId, trafficId);
 
                     messageIndex++;
                     messageBytes = 0;
@@ -341,7 +363,7 @@ public sealed class ProtocolMiddleware(
 
 
     private async Task TrySendCommandAckAsync(WebSocket socket, byte[] firstChunk, int firstChunkLength,
-        CancellationToken cancellationToken, string correlationId)
+        CancellationToken cancellationToken, string correlationId, string trafficId)
     {
         string? command = ExtractCommandName(firstChunk.AsSpan(0, firstChunkLength));
         string? ack = command switch
@@ -362,6 +384,11 @@ public sealed class ProtocolMiddleware(
         {
             await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text,
                 endOfMessage: true, cancellationToken);
+            detailed.Write("webSocketFrame", new
+            {
+                id = trafficId, direction = "backendToClient", messageType = "Text", endOfMessage = true,
+                payload = DetailedTrafficLog.Payload(bytes)
+            });
             await log.WriteAsync(new
             {
                 type = "webSocketSend",

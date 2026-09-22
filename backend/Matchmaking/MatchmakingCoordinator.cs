@@ -94,7 +94,7 @@ public sealed class MatchmakingCoordinator(
         }
     }
 
-    public JsonObject SessionRequest(string account, string nickname, string path, string method, string[] ids, string? member, JsonObject body, GameSessionRead? read = null, string keyword = "")
+    public JsonObject SessionRequest(string account, string nickname, string path, string method, string[] ids, string? member, JsonObject body, GameSessionRead? read = null, string keyword = "", string reason = "")
     {
         lock (gate)
         {
@@ -191,7 +191,9 @@ public sealed class MatchmakingCoordinator(
                 if (!session.Reserved.Contains(target)) throw Error(404, "Member not found.");
                 if (method == "DELETE")
                 {
-                    LeaveSession(session, target);
+                    var effectiveReason = representative && !string.IsNullOrEmpty(session.Keyword)
+                        && target != session.Representative && string.IsNullOrEmpty(reason) ? "kicked" : reason;
+                    LeaveSession(session, target, effectiveReason);
                     return new();
                 }
                 if (!session.Players.TryGetValue(target, out var player)) throw Error(409, "Member has not joined.");
@@ -372,13 +374,14 @@ public sealed class MatchmakingCoordinator(
         }
     }
 
-    private void LeaveSession(GameSessionRegistry.Session session, string account)
+    private void LeaveSession(GameSessionRegistry.Session session, string account, string reason = "")
     {
         if (string.IsNullOrEmpty(session.Keyword) || session.Representative == account)
         {
             EndSession(session);
             return;
         }
+        var recipients = session.Reserved.ToArray();
         if (!session.Players.Remove(account, out var player))
         {
             session.Reserved.Remove(account);
@@ -386,10 +389,19 @@ public sealed class MatchmakingCoordinator(
         }
         session.Reserved.Remove(account);
         session.Sequence++;
-        SessionEvent(session, "member:players:deleted", GameJoinProtocol.CreatedEvent(player));
+        SessionEvent(session, "member:players:deleted", GameJoinProtocol.DeletedEvent(player, reason), recipients);
         if (!session.ProviderAllocated) return;
         if (session.Players.Count < 2)
         {
+            if (session.Players.Count == 1 && session.SignalingTimeoutSeconds is { } timeout
+                && signaling.IsListening && signaling.Replace(session.Id, session.Representative,
+                    session.Players.Select(p => new SignalingMember(p.Key,
+                        GameJoinProtocol.ReadNonce(p.Value["customData1"]!.GetValue<string>()))).ToArray(),
+                    DateTimeOffset.UtcNow.AddSeconds(timeout)))
+            {
+                session.ProviderAllocated = true;
+                return;
+            }
             signaling.Remove(session.Id);
             session.ProviderAllocated = false;
             return;
@@ -449,11 +461,11 @@ public sealed class MatchmakingCoordinator(
     private void SessionSequenceEvent(GameSessionRegistry.Session session) =>
         SessionEvent(session, "operateSequenceNo", new() { ["skip"] = 0 });
 
-    private void SessionEvent(GameSessionRegistry.Session session, string suffix, JsonObject body)
+    private void SessionEvent(GameSessionRegistry.Session session, string suffix, JsonObject body, IEnumerable<string>? recipients = null)
     {
         body["sessionId"] = session.Id;
         body["gameSessionSequenceNo"] = session.Sequence;
-        hub.Publish(session.Reserved, "gameSession:" + suffix, body);
+        hub.Publish(recipients ?? session.Reserved, "gameSession:" + suffix, body);
     }
 
     private void TicketEvent(Ticket ticket, string suffix) => hub.Publish([ticket.Owner], "matchmaking:tickets:" + suffix,

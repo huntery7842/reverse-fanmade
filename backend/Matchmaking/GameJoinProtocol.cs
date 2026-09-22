@@ -66,4 +66,14 @@ internal static class GameJoinProtocol
     {
         ["member"] = new JsonObject { ["players"] = new JsonArray(player.DeepClone()) }
     };
+
+    public static JsonObject DeletedEvent(JsonObject player, string reason)
+    {
+        var deleted = (JsonObject)player.DeepClone();
+        if (reason is "kicked" or "forced") deleted["joinState"] = "CLIENT_KILLED";
+        return new JsonObject
+        {
+            ["member"] = new JsonObject { ["players"] = new JsonArray(deleted) }
+        };
+    }
 }
